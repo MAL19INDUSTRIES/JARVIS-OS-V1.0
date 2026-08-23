@@ -101,16 +101,15 @@
     handoffTitle.textContent = data.label || "Action ready";
     handoffCopy.textContent = data.message || "Review this action on your iPhone.";
     handoffButton.textContent = data.kind === "call" ? "CALL" : data.kind === "message" ? "REVIEW" : "OPEN";
+    handoffButton.setAttribute("href", data.url);
+    handoffButton.setAttribute("aria-label", data.label || "Review phone action");
     handoff.hidden = false;
   }
 
-  handoffButton.addEventListener("click", async () => {
-    if (!handoffData) return;
-    if (handoffData.copy && navigator.clipboard) {
-      try { await navigator.clipboard.writeText(handoffData.copy); } catch (_) {}
+  handoffButton.addEventListener("click", (event) => {
+    if (!handoffData || !handoffData.url) {
+      event.preventDefault();
     }
-    location.href = handoffData.url;
-    handoff.hidden = true;
   });
 
   input.addEventListener("input", () => {

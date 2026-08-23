@@ -14,7 +14,12 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtWidgets import QApplication
 
 import ui
-from core.phone_link import PhoneLinkError, PhoneLinkService, _phone_handoff
+from core.phone_link import (
+    PhoneLinkError,
+    PhoneLinkService,
+    _phone_handoff,
+    _phone_handoff_limitation,
+)
 
 
 class PhoneLinkServiceTests(unittest.TestCase):
@@ -85,7 +90,24 @@ class PhoneLinkServiceTests(unittest.TestCase):
             natural_message["url"],
             "sms:4155550123&body=Running%20late",
         )
+        self.assertEqual(
+            _phone_handoff("Would you dial the number 415-555-0199 on my iPhone")["url"],
+            "tel:4155550199",
+        )
+        self.assertEqual(
+            _phone_handoff("Take me to the YouTube app on my phone")["label"],
+            "Open Youtube",
+        )
+        self.assertIn("phone number", _phone_handoff_limitation("Call Alex"))
         self.assertIsNone(_phone_handoff("delete all my photos"))
+
+    def test_mobile_handoff_is_a_native_link_not_async_navigation(self):
+        root = Path(__file__).resolve().parents[1] / "assets" / "phone_link"
+        html = (root / "index.html").read_text(encoding="utf-8")
+        script = (root / "phone.js").read_text(encoding="utf-8")
+        self.assertIn('<a id="handoff-button"', html)
+        self.assertIn('handoffButton.setAttribute("href", data.url)', script)
+        self.assertNotIn("location.href = handoffData.url", script)
 
     def test_capability_question_is_answered_without_false_model_refusal(self):
         _, result = self._pair()

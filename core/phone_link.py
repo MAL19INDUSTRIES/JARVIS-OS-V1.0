@@ -295,6 +295,10 @@ class PhoneLinkService:
         if handoff:
             self.publish_message("assistant", handoff["message"], source="phone")
             return {"accepted": True, "handoff": handoff}
+        limitation = _phone_handoff_limitation(clean)
+        if limitation:
+            self.publish_message("assistant", limitation, source="phone")
+            return {"accepted": True, "handled": "phone-action-limitation"}
         callback = self._dispatch
         if callback is None:
             raise PhoneLinkError("JARVIS is not ready for messages yet.")
@@ -332,22 +336,30 @@ def _phone_handoff(message: str) -> dict | None:
         normalized_message,
         flags=re.IGNORECASE,
     )
-    for verb in ("call ", "phone "):
-        if lowered.startswith(verb):
-            number = "".join(
-                char for char in normalized_message[len(verb):]
-                if char.isdigit() or char in "+*#"
-            )
-            if len(number) >= 3:
-                return {
-                    "kind": "call",
-                    "label": f"Call {number}",
-                    "url": f"tel:{number}",
-                    "message": "I prepared the call. Tap below to confirm it on your iPhone.",
-                }
-    for verb in ("message ", "text "):
-        if lowered.startswith(verb):
-            remainder = normalized_message[len(verb):].strip()
+    call_match = re.match(
+        r"^(?:call|dial|phone)\s+(?:the\s+number\s+)?(.+)$",
+        normalized_message,
+        flags=re.IGNORECASE,
+    )
+    if call_match:
+        number = "".join(
+            char for char in call_match.group(1)
+            if char.isdigit() or char in "+*#"
+        )
+        if len(number) >= 3:
+            return {
+                "kind": "call",
+                "label": f"Call {number}",
+                "url": f"tel:{number}",
+                "message": "I prepared the call. Tap below to confirm it on your iPhone.",
+            }
+    message_match = re.match(
+        r"^(?:(?:send|write)\s+)?(?:a\s+)?(?:message|text|sms)(?:\s+to)?\s+(.+)$",
+        normalized_message,
+        flags=re.IGNORECASE,
+    )
+    if message_match:
+            remainder = message_match.group(1).strip()
             target, separator, body = remainder.partition(":")
             if not separator:
                 parts = re.split(
@@ -377,13 +389,27 @@ def _phone_handoff(message: str) -> dict | None:
         "youtube": "https://www.youtube.com/",
     }
     for app, url in links.items():
-        if lowered in {f"open {app}", f"launch {app}"}:
+        if re.search(
+            rf"\b(?:open|launch|start|take me to)\s+(?:the\s+)?{app}(?:\s+app)?\b",
+            lowered,
+        ):
             return {
                 "kind": "open",
                 "label": f"Open {app.title()}",
                 "url": url,
                 "message": f"Tap below to open {app.title()} on your iPhone.",
             }
+    return None
+
+
+def _phone_handoff_limitation(message: str) -> str | None:
+    lowered = " ".join(str(message or "").casefold().split())
+    if re.search(r"\b(?:call|dial|phone|message|text|sms)\b", lowered):
+        if not re.search(r"\d{3,}", lowered):
+            return (
+                "I can prepare that handoff, but this web link cannot read your iPhone "
+                "contacts. Include the phone number and I will create the confirmation card."
+            )
     return None
 
 
