@@ -1,9 +1,12 @@
 import json
 import os
+import threading
 import time
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -73,7 +76,24 @@ class PhoneLinkServiceTests(unittest.TestCase):
         message = _phone_handoff("message 4155550123: Running ten minutes late")
         self.assertEqual(message["kind"], "message")
         self.assertEqual(message["copy"], "Running ten minutes late")
+        natural = _phone_handoff("Can you open Instagram on my phone")
+        self.assertEqual(natural["kind"], "open")
+        self.assertEqual(natural["label"], "Open Instagram")
+        natural_message = _phone_handoff("Please text 4155550123 saying Running late")
+        self.assertEqual(natural_message["copy"], "Running late")
+        self.assertEqual(
+            natural_message["url"],
+            "sms:4155550123&body=Running%20late",
+        )
         self.assertIsNone(_phone_handoff("delete all my photos"))
+
+    def test_capability_question_is_answered_without_false_model_refusal(self):
+        _, result = self._pair()
+        device = self.service.authenticate(result["device_token"])
+        response = self.service.receive_chat(device, "What can you do on my phone?")
+        self.assertEqual(response["handled"], "capabilities")
+        self.assertEqual(self.dispatched, [])
+        self.assertIn("prepare calls", self.service.session(device)["messages"][-1]["content"])
 
 
 class PhoneLinkWorkspaceTests(unittest.TestCase):
@@ -83,7 +103,10 @@ class PhoneLinkWorkspaceTests(unittest.TestCase):
         ui._load_bundled_fonts()
 
     def test_native_button_opens_spacious_center_workspace(self):
-        with patch.object(ui.MainWindow, "_start_auto_graphics_detection"):
+        temporary = TemporaryDirectory()
+        service = PhoneLinkService(state_path=Path(temporary.name) / "state.json")
+        with patch.object(ui.MainWindow, "_start_auto_graphics_detection"), \
+             patch("ui.PhoneLinkService", return_value=service):
             window = ui.MainWindow("missing.png")
         window.show()
         self.app.processEvents()
@@ -106,6 +129,26 @@ class PhoneLinkWorkspaceTests(unittest.TestCase):
             window._force_quit = True
             window.close()
             window.deleteLater()
+            temporary.cleanup()
+
+    def test_phone_message_carries_verified_channel_context_to_model(self):
+        received = []
+        done = threading.Event()
+
+        def callback(value):
+            received.append(value)
+            done.set()
+
+        stub = SimpleNamespace(
+            _log=SimpleNamespace(append_log=MagicMock()),
+            _log_sig=SimpleNamespace(emit=MagicMock()),
+            on_text_command=callback,
+        )
+        ui.MainWindow._receive_phone_message(stub, "Open Instagram")
+        self.assertTrue(done.wait(1.0))
+        self.assertIn("[VERIFIED PHONE LINK MESSAGE]", received[0])
+        self.assertIn('User message: "Open Instagram"', received[0])
+        self.assertIn("Never say that Phone Link can do nothing", received[0])
 
 
 if __name__ == "__main__":

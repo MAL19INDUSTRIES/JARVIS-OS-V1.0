@@ -12,6 +12,7 @@ import hmac
 import ipaddress
 import json
 import os
+import re
 import secrets
 import socket
 import threading
@@ -23,7 +24,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 
 DEFAULT_PORT = 8765
@@ -286,6 +287,10 @@ class PhoneLinkService:
         if not clean:
             raise PhoneLinkError("Message cannot be empty.")
         self.publish_message("user", clean, source=device.get("name", "iPhone"))
+        capability_reply = _phone_capability_reply(clean)
+        if capability_reply:
+            self.publish_message("assistant", capability_reply, source="phone")
+            return {"accepted": True, "handled": "capabilities"}
         handoff = _phone_handoff(clean)
         if handoff:
             self.publish_message("assistant", handoff["message"], source="phone")
@@ -311,10 +316,28 @@ class PhoneLinkService:
 
 def _phone_handoff(message: str) -> dict | None:
     """Build an explicit, user-tapped iOS handoff for narrow safe actions."""
-    lowered = message.casefold()
+    lowered = " ".join(message.casefold().split())
+    lowered = re.sub(r"^(?:please\s+|can you\s+|could you\s+|would you\s+)", "", lowered)
+    lowered = re.sub(r"\s+(?:on|from) my (?:iphone|phone)$", "", lowered)
+    normalized_message = message.strip()
+    normalized_message = re.sub(
+        r"^(?:please\s+|can you\s+|could you\s+|would you\s+)",
+        "",
+        normalized_message,
+        flags=re.IGNORECASE,
+    )
+    normalized_message = re.sub(
+        r"\s+(?:on|from) my (?:iphone|phone)$",
+        "",
+        normalized_message,
+        flags=re.IGNORECASE,
+    )
     for verb in ("call ", "phone "):
         if lowered.startswith(verb):
-            number = "".join(char for char in message[len(verb):] if char.isdigit() or char in "+*#")
+            number = "".join(
+                char for char in normalized_message[len(verb):]
+                if char.isdigit() or char in "+*#"
+            )
             if len(number) >= 3:
                 return {
                     "kind": "call",
@@ -324,21 +347,34 @@ def _phone_handoff(message: str) -> dict | None:
                 }
     for verb in ("message ", "text "):
         if lowered.startswith(verb):
-            remainder = message[len(verb):].strip()
+            remainder = normalized_message[len(verb):].strip()
             target, separator, body = remainder.partition(":")
+            if not separator:
+                parts = re.split(
+                    r"\s+(?:saying|that says)\s+", remainder,
+                    maxsplit=1, flags=re.IGNORECASE,
+                )
+                if len(parts) == 2:
+                    target, body = parts
+                    separator = "saying"
             number = "".join(char for char in target if char.isdigit() or char in "+*#")
             if len(number) >= 3:
+                draft = body.strip() if separator else ""
+                url = f"sms:{number}"
+                if draft:
+                    url += f"&body={quote(draft, safe='')}"
                 return {
                     "kind": "message",
                     "label": f"Open Messages to {number}",
-                    "url": f"sms:{number}",
-                    "copy": body.strip() if separator else "",
+                    "url": url,
+                    "copy": draft,
                     "message": "I prepared the message. Tap below to review and send it yourself.",
                 }
     links = {
         "instagram": "https://www.instagram.com/",
         "maps": "https://maps.apple.com/",
         "music": "https://music.apple.com/",
+        "youtube": "https://www.youtube.com/",
     }
     for app, url in links.items():
         if lowered in {f"open {app}", f"launch {app}"}:
@@ -349,6 +385,23 @@ def _phone_handoff(message: str) -> dict | None:
                 "message": f"Tap below to open {app.title()} on your iPhone.",
             }
     return None
+
+
+def _phone_capability_reply(message: str) -> str | None:
+    lowered = " ".join(str(message or "").casefold().split())
+    asks_about_phone = any(term in lowered for term in (
+        "what can you do", "what can jarvis do", "control my phone",
+        "access my phone", "do anything on my phone", "phone capabilities",
+    ))
+    if not asks_about_phone:
+        return None
+    return (
+        "From this linked iPhone, you can chat with me and control JARVIS on your Mac. "
+        "I can also prepare calls to phone numbers, message drafts to phone numbers, "
+        "and links for Instagram, Maps, Music, or YouTube. Those phone actions appear "
+        "as a confirmation card and only run when you tap it. Contacts, notifications, "
+        "camera control, and locked-screen automation need the future native iPhone app."
+    )
 
 
 class _PhoneLinkHandler(BaseHTTPRequestHandler):

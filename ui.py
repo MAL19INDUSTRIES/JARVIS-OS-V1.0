@@ -8471,7 +8471,17 @@ class MainWindow(QMainWindow):
         if self.on_text_command:
             def _dispatch():
                 try:
-                    self.on_text_command(text)
+                    self.on_text_command(
+                        "[VERIFIED PHONE LINK MESSAGE]\n"
+                        "This request came from the authenticated, remembered iPhone session. "
+                        "The iPhone can chat with JARVIS, invoke JARVIS's normal desktop tools, "
+                        "and receive user-confirmed phone handoffs for calls, message drafts, "
+                        "Instagram, Maps, Music, and YouTube. Never say that Phone Link can do "
+                        "nothing. Do not claim direct access to iOS contacts, notifications, "
+                        "camera, other app data, or locked-screen control; those require the "
+                        "future native iPhone app.\n"
+                        f"User message: {json.dumps(text, ensure_ascii=False)}"
+                    )
                 except Exception as exc:
                     self._log_sig.emit(f"ERR: Phone message processing failed: {exc}")
             threading.Thread(target=_dispatch, daemon=True, name="jarvis-phone-message").start()
