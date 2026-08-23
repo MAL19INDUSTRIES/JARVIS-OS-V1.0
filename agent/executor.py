@@ -252,6 +252,9 @@ def _call_tool(tool: str, parameters: dict, speak: Callable | None) -> str:
     elif tool == "web_search":
         from actions.web_search import web_search
         return web_search(parameters=parameters, player=None) or "Done."
+    elif tool == "deep_research":
+        from actions.deep_research import deep_research
+        return deep_research(parameters=parameters, player=None) or "Done."
     elif tool == "game_updater":
         from actions.game_updater import game_updater
         return game_updater(parameters=parameters, player=None, speak=speak) or "Done."
@@ -262,6 +265,10 @@ def _call_tool(tool: str, parameters: dict, speak: Callable | None) -> str:
     elif tool == "file_controller":
         from actions.file_controller import file_controller
         return file_controller(parameters=parameters, player=None) or "Done."
+
+    elif tool == "media_control":
+        from actions.media_control import media_control
+        return media_control(parameters=parameters, player=None) or "Done."
 
     elif tool == "code_helper":
         from actions.code_helper import code_helper
@@ -279,6 +286,10 @@ def _call_tool(tool: str, parameters: dict, speak: Callable | None) -> str:
     elif tool == "send_message":
         from actions.send_message import send_message
         return send_message(parameters=parameters, player=None) or "Done."
+
+    elif tool == "email_control":
+        from actions.email_control import email_control
+        return email_control(parameters=parameters, player=None) or "Done."
 
     elif tool == "reminder":
         from actions.reminder import reminder
@@ -314,6 +325,10 @@ def _call_tool(tool: str, parameters: dict, speak: Callable | None) -> str:
         from actions.flight_finder import flight_finder
         return flight_finder(parameters=parameters, player=None, speak=speak) or "Done."
 
+    elif tool == "create_presentation":
+        from actions.presentation_maker import create_presentation
+        return create_presentation(parameters=parameters, player=None) or "Done."
+
     else:
         print(f"[Executor] ⚠️ Unknown tool '{tool}' — falling back to generated_code")
         return _run_generated_code(f"Accomplish this task: {parameters}", speak=speak)
@@ -322,7 +337,7 @@ def _goal_requests_file_save(goal: str) -> bool:
     g = str(goal or "").lower()
     return any(x in g for x in [
         "save", "write", "create a file", "make a file", "desktop",
-        ".txt", ".md", ".json", ".csv", ".html"
+        ".txt", ".md", ".json", ".csv", ".html", ".pptx"
     ])
 
 
@@ -354,7 +369,7 @@ def _ensure_required_save_step(plan: dict, goal: str) -> dict:
 
     steps = plan.get("steps", [])
     has_file_step = any(
-        str(s.get("tool", "")).strip() == "file_controller"
+        str(s.get("tool", "")).strip() in {"file_controller", "create_presentation", "deep_research"}
         for s in steps
     )
 

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#02080d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="JARVIS">
+  <title>JARVIS Phone Link</title>
+  <link rel="stylesheet" href="phone.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="identity">
+        <span class="presence" aria-hidden="true"></span>
+        <div>
+          <h1 id="persona">JARVIS</h1>
+          <p id="connection">Connecting to your Mac…</p>
+        </div>
+      </div>
+      <span class="local-pill">LOCAL</span>
+    </header>
+
+    <section id="transcript" class="transcript" aria-live="polite" aria-label="Chat transcript">
+      <div class="opening" id="opening">
+        <span class="arc-mark" aria-hidden="true"></span>
+        <h2>Your JARVIS, within reach.</h2>
+        <p>Chat here while your Mac and iPhone share the same trusted Wi-Fi.</p>
+      </div>
+    </section>
+
+    <section id="handoff" class="handoff" hidden>
+      <div>
+        <strong id="handoff-title">Action ready</strong>
+        <p id="handoff-copy">Review this action before it leaves JARVIS.</p>
+      </div>
+      <button id="handoff-button" type="button">REVIEW</button>
+    </section>
+
+    <form id="composer" class="composer">
+      <label class="sr-only" for="message">Message JARVIS</label>
+      <textarea id="message" rows="1" maxlength="2000" placeholder="Message JARVIS" autocomplete="off"></textarea>
+      <button id="send" type="submit" aria-label="Send message">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 14-7-4 14-3-6-7-1Zm7 1 7-8"/></svg>
+      </button>
+    </form>
+    <p class="privacy">Actions that leave chat always require your tap.</p>
+  </main>
+  <script src="phone.js" defer></script>
+</body>
+</html>

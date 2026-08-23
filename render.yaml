@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: jarvis-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    preDeployCommand: alembic upgrade head
+    envVars:
+      - key: JARVIS_ENV
+        value: production
+      - key: AUTO_CREATE_TABLES
+        value: "0"
+      - key: REDIS_REQUIRED
+        value: "1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: jarvis-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: jarvis-redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JARVIS_ENCRYPTION_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false
+  - type: keyvalue
+    name: jarvis-redis
+    ipAllowList: []
+    plan: starter
+
+databases:
+  - name: jarvis-postgres
+    plan: basic-256mb
+    databaseName: jarvis
+    user: jarvis

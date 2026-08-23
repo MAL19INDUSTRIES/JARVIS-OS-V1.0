@@ -1,3 +1,7 @@
 {
-  "graphics_quality": "medium"
+  "graphics_quality": "medium",
+  "theme": "arc_reactor",
+  "intro_completed": false,
+  "intro_version": 0,
+  "startup_greeting_enabled": true
 }

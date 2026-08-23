@@ -87,9 +87,15 @@ _CHANNELS           = 1
 _RECEIVE_SAMPLE_RATE = 24_000
 _CHUNK_SIZE         = 1_024
 
-_IMG_MAX_W = 480
-_IMG_MAX_H = 270
-_JPEG_Q    = 45
+_IMG_MAX_W = 1600
+_IMG_MAX_H = 1000
+_CAMERA_MAX_W = 1280
+_CAMERA_MAX_H = 720
+_JPEG_Q    = 78
+
+_direct_client = None
+_direct_client_key = ""
+_direct_client_lock = threading.Lock()
 
 _last_capture_time = 0.0
 _MIN_CAPTURE_INTERVAL = 0.5  # seconds
@@ -100,8 +106,18 @@ _SYSTEM_PROMPT = (
     "Be concise and direct — maximum two sentences unless the user's question "
     "requires more detail. "
     "Address the user respectfully. "
-    "Always call the appropriate tool; never simulate results."
+    "Only state text, names, buttons, or UI details that are legible in the image. "
+    "If something is unclear, say that it is unclear instead of guessing."
 )
+
+
+def _encode_pil_image(img) -> tuple[bytes, str]:
+    """Resize and encode an RGB image without an intermediate disk format."""
+    img = img.convert("RGB")
+    img.thumbnail((_IMG_MAX_W, _IMG_MAX_H), PIL.Image.Resampling.BILINEAR)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=_JPEG_Q, optimize=False)
+    return buf.getvalue(), "image/jpeg"
 
 
 def _compress(img_bytes: bytes, source_format: str = "PNG") -> tuple[bytes, str]:
@@ -109,11 +125,7 @@ def _compress(img_bytes: bytes, source_format: str = "PNG") -> tuple[bytes, str]
         return img_bytes, f"image/{source_format.lower()}"
 
     try:
-        img = PIL.Image.open(io.BytesIO(img_bytes)).convert("RGB")
-        img.thumbnail((_IMG_MAX_W, _IMG_MAX_H), PIL.Image.BILINEAR)
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=_JPEG_Q, optimize=False)
-        return buf.getvalue(), "image/jpeg"
+        return _encode_pil_image(PIL.Image.open(io.BytesIO(img_bytes)))
     except Exception as e:
         print(f"[Vision] ⚠️  Image compress failed: {e}")
         return img_bytes, f"image/{source_format.lower()}"
@@ -126,9 +138,17 @@ def _capture_screen() -> tuple[bytes, str]:
     with mss.mss() as sct:
         monitors = sct.monitors          # [0] = all combined, [1..n] = real screens
         target   = monitors[1] if len(monitors) > 1 else monitors[0]
-        shot     = sct.grab(target)
-        png      = mss.tools.to_png(shot.rgb, shot.size)
+        shot = sct.grab(target)
 
+    if _PIL:
+        try:
+            # Encoding the full display to PNG only to decode it again cost
+            # hundreds of milliseconds on high-resolution displays.
+            return _encode_pil_image(PIL.Image.frombytes("RGB", shot.size, shot.rgb))
+        except Exception as e:
+            print(f"[Vision] ⚠️  Direct screen encode failed: {e}")
+
+    png = mss.tools.to_png(shot.rgb, shot.size)
     return _compress(png, "PNG")
 
 
@@ -195,25 +215,79 @@ def _capture_camera() -> tuple[bytes, str]:
     if not cap.isOpened():
         raise RuntimeError(f"Camera index {index} could not be opened.")
 
-    for _ in range(3):
-        cap.read()
+    # Keep capture and upload bounded. Native 4K camera frames add latency but
+    # do not improve the model's answer after the submission resize.
+    for prop, value in (
+        (getattr(cv2, "CAP_PROP_BUFFERSIZE", -1), 1),
+        (getattr(cv2, "CAP_PROP_FRAME_WIDTH", -1), _CAMERA_MAX_W),
+        (getattr(cv2, "CAP_PROP_FRAME_HEIGHT", -1), _CAMERA_MAX_H),
+        (getattr(cv2, "CAP_PROP_FPS", -1), 30),
+    ):
+        if prop >= 0:
+            cap.set(prop, value)
 
-    ret, frame = cap.read()
-    cap.release()
+    ret = False
+    frame = None
+    try:
+        # The first successful read is current enough for a still analysis.
+        # Retry once only when a backend has not produced its first frame yet.
+        for _ in range(2):
+            ret, frame = cap.read()
+            if ret and frame is not None:
+                break
+    finally:
+        cap.release()
 
     if not ret or frame is None:
         raise RuntimeError("Camera returned no frame.")
 
-    if _PIL:
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        img = PIL.Image.fromarray(rgb)
-        img.thumbnail((_IMG_MAX_W, _IMG_MAX_H), PIL.Image.BILINEAR)
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=_JPEG_Q)
-        return buf.getvalue(), "image/jpeg"
-
-    _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, _JPEG_Q])
+    height, width = frame.shape[:2]
+    scale = min(1.0, _CAMERA_MAX_W / width, _CAMERA_MAX_H / height)
+    if scale < 1.0:
+        frame = cv2.resize(
+            frame,
+            (max(1, round(width * scale)), max(1, round(height * scale))),
+            interpolation=cv2.INTER_AREA,
+        )
+    ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, _JPEG_Q])
+    if not ok:
+        raise RuntimeError("Camera frame could not be encoded.")
     return buf.tobytes(), "image/jpeg"
+
+
+def _get_direct_client():
+    """Reuse the HTTP client so repeated vision calls keep warm connections."""
+    global _direct_client, _direct_client_key
+    key = _get_api_key()
+    with _direct_client_lock:
+        if _direct_client is None or _direct_client_key != key:
+            _direct_client = genai.Client(api_key=key)
+            _direct_client_key = key
+        return _direct_client
+
+
+def _direct_vision_answer(image_bytes: bytes, mime_type: str, user_text: str) -> str:
+    client = _get_direct_client()
+    prompt = (
+        f"{_SYSTEM_PROMPT}\n\n"
+        "For screen analysis, prioritize visible on-screen text and exact UI state. "
+        "Do not identify people, recipients, or accounts unless the name is clearly readable. "
+        "If multiple names are visible, distinguish the active chat/header from side-list names. "
+        "Answer the user's question directly.\n\n"
+        f"User question: {user_text}"
+    )
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=[
+            gtypes.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+            prompt,
+        ],
+    )
+
+    text = (getattr(response, "text", "") or "").strip()
+    if not text:
+        raise RuntimeError("Gemini returned no text for the screen image.")
+    return re.sub(r"\s+", " ", text).strip()
 
 class _VisionSession:
     def __init__(self):
@@ -448,8 +522,34 @@ def screen_process(
     response=None,
     player=None,
     session_memory=None,
-) -> bool:
+    speak=None,
+) -> str:
     global _last_capture_time
+    preview_active = False
+
+    def _deliver(message: str, *, error: bool = False) -> str:
+        """Route the vision result to speech, with the log as a fallback."""
+        spoken = False
+        if callable(speak):
+            try:
+                spoken = bool(speak(message))
+            except Exception as exc:
+                print(f"[Vision] ⚠️  Speech handoff failed: {exc}")
+        if player and not spoken:
+            try:
+                prefix = "ERR" if error else "Jarvis"
+                player.write_log(f"{prefix}: {message}")
+            except Exception:
+                pass
+        if preview_active and player and hasattr(player, "hide_vision_preview"):
+            try:
+                # Keep the live feed visible while the spoken result is likely
+                # still playing, then release its camera/screen resources.
+                hold_ms = 2400 if error else max(2200, min(10_000, len(message) * 55))
+                player.hide_vision_preview(hold_ms)
+            except Exception:
+                pass
+        return message
 
     params    = parameters or {}
     user_text = (params.get("text") or params.get("user_text") or "").strip()
@@ -457,21 +557,15 @@ def screen_process(
 
     if not user_text:
         print("[Vision] ⚠️  No question provided — aborting")
-        return False
+        return _deliver("No vision question was provided.", error=True)
 
     print(f"[Vision] ▶ angle={angle!r}  question='{user_text[:80]}'")
-
-    try:
-        _ensure_session(player=player)
-    except Exception as e:
-        print(f"[Vision] ❌ Could not start session: {e}")
-        return False
 
     # Cooldown to prevent excessive captures
     now = time.time()
     if now - _last_capture_time < _MIN_CAPTURE_INTERVAL:
         print(f"[Vision] ⚠️  Capture too frequent — skipping")
-        return False
+        return _deliver("Screen capture skipped because requests are too frequent.", error=True)
 
     try:
         if angle == "camera":
@@ -483,13 +577,26 @@ def screen_process(
         _last_capture_time = now
     except Exception as e:
         print(f"[Vision] ❌ Capture error: {e}")
-        return False
+        return _deliver(f"Screen capture failed: {e}", error=True)
 
-    result = _session.request(image_bytes, mime_type, user_text)
-    if result is None:
-        print("[Vision] ⚠️  No vision result")
-        return False
-    return True
+    if player and hasattr(player, "show_vision_preview"):
+        try:
+            # The UI uses this exact capture as its initial visual state. Screen
+            # analysis stays frozen to avoid a recursive screen-within-screen
+            # feed; camera analysis transitions from this still to live video.
+            player.show_vision_preview(angle, image_bytes, mime_type)
+            preview_active = True
+        except Exception as exc:
+            print(f"[Vision] ⚠️  Live preview unavailable: {exc}")
+
+    try:
+        result = _direct_vision_answer(image_bytes, mime_type, user_text)
+    except Exception as e:
+        print(f"[Vision] ❌ Analysis error: {e}")
+        return _deliver(f"Screen analysis failed: {e}", error=True)
+
+    print(f"[Vision] 💬 {result}")
+    return _deliver(result)
 
 
 def warmup_session(player=None) -> None:

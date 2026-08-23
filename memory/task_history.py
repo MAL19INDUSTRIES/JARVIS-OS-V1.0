@@ -50,8 +50,6 @@ def record_task(
     result: Any = None,
     error: str = "",
 ) -> dict:
-    items = _load()
-
     entry = {
         "task_id": task_id,
         "goal": goal,
@@ -62,12 +60,31 @@ def record_task(
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
 
+    from core.tenant import get_current_user_id
+
+    user_id = get_current_user_id()
+    if user_id:
+        from api.repositories import add_task_record
+
+        db_entry = dict(entry)
+        db_entry.pop("timestamp", None)
+        return add_task_record(user_id, db_entry)
+
+    items = _load()
+
     items.append(entry)
     _save(items)
     return entry
 
 
 def get_history(limit: int = 10, status: str | None = None) -> list[dict]:
+    from core.tenant import get_current_user_id
+
+    user_id = get_current_user_id()
+    if user_id:
+        from api.repositories import task_history
+
+        return task_history(user_id, limit=limit, status=status)
     items = _load()
     if status:
         items = [x for x in items if x.get("status") == status]
@@ -75,7 +92,7 @@ def get_history(limit: int = 10, status: str | None = None) -> list[dict]:
 
 
 def get_last() -> dict | None:
-    items = _load()
+    items = get_history(limit=1)
     return items[-1] if items else None
 
 

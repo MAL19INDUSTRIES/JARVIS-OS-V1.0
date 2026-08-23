@@ -87,7 +87,6 @@ def _launch_windows(app_name: str) -> bool:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            time.sleep(1.5)
             return True
         except Exception as e:
             print(f"[open_app] subprocess failed: {e}")
@@ -95,7 +94,6 @@ def _launch_windows(app_name: str) -> bool:
     if ":" in app_name:
         try:
             subprocess.Popen(f"start {app_name}", shell=True)
-            time.sleep(1.0)
             return True
         except Exception:
             pass
@@ -124,7 +122,6 @@ def _launch_macos(app_name: str) -> bool:
             capture_output=True, timeout=8
         )
         if result.returncode == 0:
-            time.sleep(1.0)
             return True
     except Exception:
         pass
@@ -135,7 +132,6 @@ def _launch_macos(app_name: str) -> bool:
             capture_output=True, timeout=8
         )
         if result.returncode == 0:
-            time.sleep(1.0)
             return True
     except Exception:
         pass
@@ -148,7 +144,6 @@ def _launch_macos(app_name: str) -> bool:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
-            time.sleep(1.0)
             return True
         except Exception:
             pass
@@ -183,7 +178,6 @@ def _launch_linux(app_name: str) -> bool:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
-            time.sleep(1.0)
             return True
         except Exception:
             pass

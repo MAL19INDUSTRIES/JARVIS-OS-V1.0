@@ -1,5 +1,6 @@
 # --- Python ---
 __pycache__/
+.qa-artifacts/
 *.py[cod]
 *$py.class
 *.pyo
@@ -38,6 +39,12 @@ htmlcov/
 config/api_keys.json
 config/ui_settings.json
 config/layout_settings.json
+config/.intro_voice_cache/
+config/gmail_credentials.json
+config/credentials.json
+credentials.json
+client_secret_*.json
+token.json
 
 # Local memory and task history
 memory/long_term.json
@@ -58,12 +65,18 @@ memory/task_history.json
 # Playwright
 playwright/.cache/
 
+# Hosted web build artifacts
+web/node_modules/
+web/.next/
+web/tsconfig.tsbuildinfo
+
 # If you generate local status/log files
 jarvis.log
 status.json
 
 
 tmp/
+outputs/
 .blackboxcli/
 .sixth/
 *.blackboxcli/

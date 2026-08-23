@@ -9,7 +9,6 @@ from pathlib import Path
 from datetime import datetime
 from urllib.parse import quote_plus
 
-import pyautogui
 import numpy as np
 
 from actions.jarvis_file_stamp import write_text_with_stamp
@@ -51,8 +50,12 @@ _YT_VIDEO_FILTER = "EgIQAQ%3D%3D"
 
 
 def _get_api_key() -> str:
-    with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
+    from memory.config_manager import get_gemini_key
+
+    key = get_gemini_key()
+    if not key:
+        raise ValueError("Gemini API key is not configured.")
+    return key
 
 
 def _open_url(url: str) -> None:

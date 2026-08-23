@@ -28,6 +28,13 @@ def _empty_memory() -> dict:
     }
 
 def load_memory() -> dict:
+    from core.tenant import get_current_user_id
+
+    user_id = get_current_user_id()
+    if user_id:
+        from api.repositories import load_user_memory
+
+        return load_user_memory(user_id)
     if not MEMORY_PATH.exists():
         return _empty_memory()
     with _lock:
@@ -71,6 +78,14 @@ def save_memory(memory: dict) -> None:
     if not isinstance(memory, dict):
         return
     memory = _trim_to_limit(memory)
+    from core.tenant import get_current_user_id
+
+    user_id = get_current_user_id()
+    if user_id:
+        from api.repositories import replace_user_memory
+
+        replace_user_memory(user_id, memory)
+        return
     MEMORY_PATH.parent.mkdir(parents=True, exist_ok=True)
     with _lock:
         MEMORY_PATH.write_text(

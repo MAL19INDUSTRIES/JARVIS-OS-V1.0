@@ -10,6 +10,7 @@ import random
 from pathlib import Path
 
 from actions.jarvis_file_stamp import mark_created_file
+from actions.safe_text_entry import safe_type_text
 
 try:
     import pyautogui
@@ -146,25 +147,16 @@ def _user_profile() -> dict:
     return {}
 
 def _type(text: str, interval: float = 0.03) -> str:
-    _require_pyautogui()
-    time.sleep(0.3)
-    pyautogui.typewrite(text, interval=interval)
-    return f"Typed: {text[:60]}{'…' if len(text) > 60 else ''}"
+    result = safe_type_text(text, purpose="generic", interval=min(interval, 0.002))
+    if not result.ok:
+        return result.message
+    return f"Typed safely: {text[:60]}{'…' if len(text) > 60 else ''}"
 
 def _smart_type(text: str, clear_first: bool = True) -> str:
-    _require_pyautogui()
-    if clear_first:
-        _clear_field()
-        time.sleep(0.1)
-
-    if len(text) > 20 and _PYPERCLIP:
-        pyperclip.copy(text)
-        time.sleep(0.1)
-        pyautogui.hotkey("ctrl", "v")
-        return f"Smart-typed (clipboard): {text[:60]}{'…' if len(text) > 60 else ''}"
-
-    pyautogui.typewrite(text, interval=0.04)
-    return f"Smart-typed: {text[:60]}{'…' if len(text) > 60 else ''}"
+    result = safe_type_text(text, purpose="generic", clear_first=clear_first)
+    if not result.ok:
+        return result.message
+    return f"Smart-typed safely: {text[:60]}{'…' if len(text) > 60 else ''}"
 
 
 def _click(x=None, y=None, button: str = "left", clicks: int = 1) -> str:
@@ -218,13 +210,10 @@ def _clipboard_get() -> str:
 
 
 def _clipboard_paste(text: str) -> str:
-    if _PYPERCLIP:
-        pyperclip.copy(text)
-        time.sleep(0.1)
-        _require_pyautogui()
-        pyautogui.hotkey("ctrl", "v")
-        return f"Pasted: {text[:60]}{'…' if len(text) > 60 else ''}"
-    return "pyperclip not available"
+    result = safe_type_text(text, purpose="generic")
+    if not result.ok:
+        return result.message
+    return f"Pasted safely: {text[:60]}{'…' if len(text) > 60 else ''}"
 
 
 def _screenshot(save_path: str | None = None) -> str:
@@ -237,11 +226,10 @@ def _screenshot(save_path: str | None = None) -> str:
 
 
 def _clear_field() -> str:
-    _require_pyautogui()
-    pyautogui.hotkey("ctrl", "a")
-    time.sleep(0.1)
-    pyautogui.press("delete")
-    return "Field cleared"
+    result = safe_type_text("", purpose="generic", clear_first=True)
+    if not result.ok:
+        return result.message
+    return "Field cleared safely"
 
 def _focus_window(title: str) -> str:
     os_name = _get_os()

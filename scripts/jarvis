@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# JARVIS command-line launcher. Works directly or through a symlink in PATH.
+set -e
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+PROJECT_ROOT="$(cd -P "$(dirname "$SOURCE")/.." >/dev/null 2>&1 && pwd)"
+
+cd "$PROJECT_ROOT"
+export JARVIS_CLI=1
+if [ -x "$PROJECT_ROOT/.venv/bin/python" ]; then
+  exec "$PROJECT_ROOT/.venv/bin/python" "$PROJECT_ROOT/main.py" "$@"
+fi
+exec python3 "$PROJECT_ROOT/main.py" "$@"

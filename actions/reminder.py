@@ -329,8 +329,7 @@ def reminder(
     if not job_id:
         return "I couldn't register the reminder with the system scheduler."
 
-    if player:
-        player.write_log(f"[Reminder] ✅ {date_str} {time_str} — {safe_msg[:40]}")
+    print(f"[Reminder] scheduled {date_str} {time_str} - {safe_msg[:40]}", flush=True)
 
     friendly_time = target_dt.strftime("%B %d at %I:%M %p")
     return f"Reminder set for {friendly_time}."

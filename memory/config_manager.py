@@ -19,6 +19,16 @@ def config_exists() -> bool:
     return CONFIG_FILE.exists()
 
 def save_api_keys(gemini_api_key: str) -> None:
+    from core.tenant import get_current_user_id
+
+    user_id = get_current_user_id()
+    if user_id:
+        from api.database import SessionLocal
+        from api.secret_service import set_user_secret
+
+        with SessionLocal() as db:
+            set_user_secret(db, user_id, "gemini_api_key", gemini_api_key.strip())
+        return
     ensure_config_dir()
 
     data: dict = {}
@@ -36,6 +46,16 @@ def save_api_keys(gemini_api_key: str) -> None:
     )
 
 def load_api_keys() -> dict:
+    from core.tenant import get_current_user_id
+
+    user_id = get_current_user_id()
+    if user_id:
+        from api.database import SessionLocal
+        from api.secret_service import get_user_secret
+
+        with SessionLocal() as db:
+            key = get_user_secret(db, user_id, "gemini_api_key")
+        return {"gemini_api_key": key} if key else {}
     if not CONFIG_FILE.exists():
         return {}
     try:
@@ -45,6 +65,10 @@ def load_api_keys() -> dict:
         return {}
 
 def get_gemini_key() -> str | None:
+    from core.tenant import get_current_user_id
+
+    if get_current_user_id():
+        return load_api_keys().get("gemini_api_key")
     key = os.environ.get("GEMINI_API_KEY")
     if isinstance(key, str) and key.strip():
         return key.strip()

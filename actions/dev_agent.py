@@ -17,9 +17,64 @@ def get_base_dir():
 BASE_DIR         = get_base_dir()
 API_CONFIG_PATH  = BASE_DIR / "config" / "api_keys.json"
 PROJECTS_DIR     = Path.home() / "Desktop" / "JarvisProjects"
+WEBSITES_DIR     = Path.home() / "Documents" / "JARVIS Websites"
 MAX_FIX_ATTEMPTS = 5
 MODEL_PLANNER    = "gemini-2.5-flash"
 MODEL_WRITER     = "gemini-2.5-flash"
+
+
+def _find_website_entry(
+    project_dir: Path,
+    files: list[dict],
+    entry_point: str = "",
+) -> Path | None:
+    """Return the best generated HTML entry without guessing a server URL."""
+    paths = [str(item.get("path", "")) for item in files if isinstance(item, dict)]
+    if entry_point:
+        paths.insert(0, str(entry_point))
+    html_paths = [
+        path for path in paths
+        if Path(path).suffix.lower() in {".html", ".htm"}
+    ]
+    html_paths.sort(
+        key=lambda path: (
+            Path(path).name.lower() not in {"index.html", "index.htm"},
+            len(Path(path).parts),
+            path,
+        )
+    )
+    for relative in html_paths:
+        candidate = (project_dir / relative).resolve()
+        try:
+            candidate.relative_to(project_dir.resolve())
+        except ValueError:
+            continue
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _is_website_plan(files: list[dict], entry_point: str = "") -> bool:
+    candidates = [entry_point, *(
+        str(item.get("path", ""))
+        for item in files
+        if isinstance(item, dict)
+    )]
+    return any(Path(path).suffix.lower() in {".html", ".htm"} for path in candidates)
+
+
+def _notify_website_preview(
+    player,
+    project_dir: Path,
+    files: list[dict],
+    entry_point: str,
+    persona: str,
+) -> Path | None:
+    entry = _find_website_entry(project_dir, files, entry_point)
+    show_preview = getattr(player, "show_website_preview", None)
+    if entry is not None and callable(show_preview):
+        show_preview(str(entry), persona)
+    return entry
 
 def _get_api_key() -> str:
     with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -444,6 +499,7 @@ def _build_project(
     language: str,
     project_name: str,
     timeout: int,
+    persona: str = "JARVIS",
     speak=None,
     player=None,
 ) -> str:
@@ -467,13 +523,13 @@ def _build_project(
 
     proj_name    = project_name or plan.get("project_name", "jarvis_project")
     proj_name    = re.sub(r"[^\w\-]", "_", proj_name)
-    project_dir  = PROJECTS_DIR / proj_name
-    project_dir.mkdir(parents=True, exist_ok=True)
-
     files        = plan.get("files", [])
     entry_point  = plan.get("entry_point", "main.py")
     run_command  = plan.get("run_command", f"python {entry_point}")
     dependencies = plan.get("dependencies", [])
+    project_root = WEBSITES_DIR if _is_website_plan(files, entry_point) else PROJECTS_DIR
+    project_dir  = project_root / proj_name
+    project_dir.mkdir(parents=True, exist_ok=True)
 
     log(f"Project: {proj_name} | Files: {len(files)} | Entry: {entry_point}")
 
@@ -517,6 +573,8 @@ def _build_project(
         msg = "I could not write any project files, sir."
         if speak: speak(msg)
         return msg
+
+    _notify_website_preview(player, project_dir, files, entry_point, persona)
 
     if dependencies:
         install_result = _install_dependencies(dependencies, project_dir)
@@ -593,6 +651,7 @@ def dev_agent(
     language     = p.get("language", "python").strip()
     project_name = p.get("project_name", "").strip()
     timeout      = int(p.get("timeout", 30))
+    persona      = str(p.get("_persona_name", "JARVIS")).strip().upper() or "JARVIS"
 
     if not description:
         return "Please describe the project you want me to build, sir."
@@ -602,6 +661,7 @@ def dev_agent(
         language     = language,
         project_name = project_name,
         timeout      = timeout,
+        persona      = persona,
         speak        = speak,
         player       = player,
     )

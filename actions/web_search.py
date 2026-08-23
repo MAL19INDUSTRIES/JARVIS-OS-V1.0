@@ -15,6 +15,11 @@ API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
 
 
 def _get_api_key() -> str:
+    from memory.config_manager import get_gemini_key
+
+    stored_key = get_gemini_key()
+    if stored_key:
+        return stored_key
     env_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if env_key:
         return env_key
@@ -80,6 +85,7 @@ def _format_ddg(query: str, results: list[dict]) -> str:
         if r.get("url"):     lines.append(f"   {r['url']}")
         lines.append("")
     return "\n".join(lines).strip()
+
 
 def _compare(items: list[str], aspect: str) -> str:
     query = (

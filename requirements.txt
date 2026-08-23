@@ -4,30 +4,46 @@ comtypes; platform_system=="Windows"
 pycaw; platform_system=="Windows"
 pywinauto; platform_system=="Windows"
 # Cross-platform deps
+# cryptography 50 currently has no macOS x86_64/Python 3.14 wheel and attempts
+# a local OpenSSL build. Keep using the compatible binary-wheel release.
+cryptography==48.0.0; platform_system=="Darwin" and platform_machine=="x86_64" and python_version>="3.14"
+cryptography>=44,<51; platform_system!="Darwin"
 duckduckgo-search
 google-genai
 google-generativeai
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
 mss
 numpy
 opencv-python
 playwright
 Pillow
+pandas
 psutil
 pyautogui
 pygetwindow
 pyperclip
 pyqt6
+PyQt6-WebEngine
+python-docx
+openpyxl
 python-pptx
+PyMuPDF
 requests
 send2trash
 sounddevice
 youtube-transcript-api
 fastapi
 uvicorn[standard]
+xlrd
 keyring
+SQLAlchemy>=2.0,<3
+alembic>=1.13,<2
+psycopg[binary]>=3.2,<4
+redis>=5,<7
+email-validator>=2.2,<3
 # External TTS providers
 elevenlabs
 openai
 soundfile
-
-

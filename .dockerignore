@@ -1,0 +1,14 @@
+.git
+.venv
+build
+dist
+outputs
+tmp
+web/.next
+web/node_modules
+__pycache__
+*.pyc
+*.db
+.env
+.env.*
+!.env.example
