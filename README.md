@@ -67,16 +67,14 @@ depend on permissions and available applications on each operating system.
 
 ## iPhone companion
 
-Phone Link now uses an [Apple Shortcut](docs/IPHONE_SHORTCUT.md) as the native
-iPhone action layer on the same local Wi-Fi network. The shortcut can run from
-the Home Screen, Siri, a widget, or the Action button without a QR or permanent
-browser session. JARVIS opens a signed Shortcut installer and copies its private
-connection code automatically, so no actions need to be assembled by hand. A
-normal run is voice-first: say “Siri, JARVIS,” or tap once and speak without
-opening the Shortcuts app or typing. A standalone
-[native companion](ios/JARVISPhone/README.md)
-remains under development and is not distributed through TestFlight or the App
-Store.
+The [native iPhone companion](ios/JARVISPhone/README.md) is now cloud-first. It
+uses a normal account instead of QR pairing, keeps the chat log intentionally
+focused, accepts typed or spoken requests, and shows an animated screen edge
+while JARVIS is listening, thinking, or waiting for approval. Its App Intent can
+be assigned to Apple's Vocal Shortcuts feature so a person can say `JARVIS` to
+start listening. Because the phone connects to the hosted multi-user API, the
+desktop app and Mac can be offline. TestFlight and App Store preparation are
+documented in [the distribution checklist](ios/JARVISPhone/DISTRIBUTION.md).
 
 ## Hosted web application
 

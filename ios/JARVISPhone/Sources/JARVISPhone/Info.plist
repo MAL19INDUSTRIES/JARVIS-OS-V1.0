@@ -33,6 +33,10 @@
   </array>
   <key>LSRequiresIPhoneOS</key>
   <true/>
+  <key>JARVISAPIBaseURL</key>
+  <string>$(JARVIS_API_BASE_URL)</string>
+  <key>ITSAppUsesNonExemptEncryption</key>
+  <false/>
   <key>NSAppTransportSecurity</key>
   <dict>
     <key>NSAllowsLocalNetworking</key>
@@ -42,8 +46,10 @@
   <string>JARVIS opens the camera only after you confirm a camera action.</string>
   <key>NSContactsUsageDescription</key>
   <string>JARVIS uses contacts to resolve the person you explicitly ask to call or message.</string>
-  <key>NSLocalNetworkUsageDescription</key>
-  <string>JARVIS connects directly to your Mac on the same trusted Wi-Fi network.</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>JARVIS uses the microphone only while listening to a request you started.</string>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>JARVIS converts your spoken request into text so it can carry out your command.</string>
   <key>UILaunchScreen</key>
   <dict/>
   <key>UISupportedInterfaceOrientations</key>

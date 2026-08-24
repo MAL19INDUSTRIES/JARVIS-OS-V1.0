@@ -2,7 +2,7 @@ import SwiftUI
 
 @main
 struct JARVISPhoneApp: App {
-    @StateObject private var store = PhoneLinkStore()
+    @StateObject private var store = JARVISStore()
 
     var body: some Scene {
         WindowGroup {

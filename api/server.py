@@ -10,7 +10,7 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -26,6 +26,7 @@ from .rate_limit import limiter
 from .repositories import add_chat_message, recent_chat_messages
 from .schemas import (
     ChatRequest,
+    ChatMessageView,
     ChatResponse,
     GeminiKeyRequest,
     LoginRequest,
@@ -119,7 +120,10 @@ def _user_view(user: User, db: Session) -> UserView:
         id=user.id,
         email=user.email,
         display_name=user.display_name,
-        gemini_configured=has_user_secret(db, user.id, "gemini_api_key"),
+        gemini_configured=(
+            has_user_secret(db, user.id, "gemini_api_key")
+            or bool(settings.service_gemini_api_key)
+        ),
     )
 
 
@@ -163,6 +167,33 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)) ->
 @app.post("/auth/logout", status_code=204)
 def logout(_: User = Depends(get_current_user)) -> None:
     return None
+
+
+@app.delete("/auth/account", status_code=204)
+def delete_account(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    from .models import (
+        AnswerCacheEntry,
+        ChatMessage,
+        MemoryEntry,
+        TaskRecord,
+        UserConfig,
+        UserSecret,
+    )
+
+    for model in (
+        AnswerCacheEntry,
+        TaskRecord,
+        ChatMessage,
+        UserConfig,
+        MemoryEntry,
+        UserSecret,
+    ):
+        db.execute(delete(model).where(model.user_id == user.id))
+    db.delete(user)
+    db.commit()
 
 
 @app.post("/me/gemini-key")
@@ -214,7 +245,20 @@ async def chat(
     db: Session = Depends(get_db),
 ) -> ChatResponse:
     await limiter.consume(user.id, "chat", 30, 60)
-    api_key = get_user_secret(db, user.id, "gemini_api_key")
+    if payload.client_kind == "ios":
+        from core.phone_link import _phone_handoff
+
+        handoff = _phone_handoff(payload.message, native=True)
+        if handoff:
+            with tenant_scope(user.id):
+                add_chat_message(user.id, "user", payload.message)
+                add_chat_message(user.id, "assistant", handoff["message"])
+            return ChatResponse(response=handoff["message"], handoff=handoff)
+
+    api_key = (
+        get_user_secret(db, user.id, "gemini_api_key")
+        or settings.service_gemini_api_key
+    )
     if not api_key:
         raise HTTPException(status_code=409, detail="Add a Gemini API key before starting JARVIS")
 
@@ -250,6 +294,21 @@ async def chat(
             raise HTTPException(status_code=502, detail="Gemini returned an empty response")
         add_chat_message(user.id, "assistant", response_text)
     return ChatResponse(response=response_text)
+
+
+@app.get("/chat/history", response_model=list[ChatMessageView])
+def chat_history(
+    user: User = Depends(get_current_user),
+) -> list[ChatMessageView]:
+    return [
+        ChatMessageView(
+            id=message.id,
+            role=message.role,
+            content=message.content,
+            created_at=message.created_at.isoformat(),
+        )
+        for message in recent_chat_messages(user.id, limit=80)
+    ]
 
 
 @app.websocket("/ws")
