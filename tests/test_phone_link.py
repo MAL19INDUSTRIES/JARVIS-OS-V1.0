@@ -176,6 +176,10 @@ class PhoneLinkServiceTests(unittest.TestCase):
         self.assertIn("Add to Home Screen", html)
         self.assertIn("SAFARI REQUIRED", html)
         self.assertIn("function requiresSafari()", script)
+        self.assertIn('new URLSearchParams({ device: token })', script)
+        self.assertIn("showExpiredShortcut()", script)
+        manifest = (root / "manifest.webmanifest").read_text(encoding="utf-8")
+        self.assertNotIn('"start_url"', manifest)
         self.assertNotIn("OPEN JARVIS APP", html)
         self.assertNotIn("jarvisphone://pair", script)
 

@@ -72,6 +72,25 @@
     input.disabled = !ready;
   }
 
+  function tokenFromLaunchURL() {
+    const value = new URLSearchParams(location.hash.slice(1)).get("device") || "";
+    return value.length >= 20 ? value : "";
+  }
+
+  function preserveHomeScreenCredential() {
+    if (!token) return;
+    const fragment = new URLSearchParams({ device: token });
+    history.replaceState(null, "", `/phone/#${fragment.toString()}`);
+  }
+
+  function showExpiredShortcut() {
+    setConnection("This Home Screen link needs to be replaced");
+    const heading = opening.querySelector("h2");
+    const detail = opening.querySelector("p");
+    heading.textContent = "Reconnect this shortcut";
+    detail.textContent = "Delete this Home Screen icon, scan a fresh QR in Safari, then add JARVIS to the Home Screen again.";
+  }
+
   function appendMessage(item) {
     if (document.querySelector(`[data-seq="${item.seq}"]`)) return;
     opening.classList.add("hidden");
@@ -102,6 +121,7 @@
     if (!response.ok) throw new Error(data.error || "Pairing failed.");
     token = data.device_token;
     localStorage.setItem(storageKey, token);
+    preserveHomeScreenCredential();
     await poll();
     startPolling();
     if (!window.navigator.standalone && localStorage.getItem("jarvis.phone-link.home-tip") !== "done") {
@@ -131,6 +151,9 @@
       if (response.status === 401) {
         localStorage.removeItem(storageKey);
         token = "";
+        if (new URLSearchParams(location.hash.slice(1)).has("device")) {
+          history.replaceState(null, "", "/phone/");
+        }
         throw new Error(data.error || "This iPhone link was revoked.");
       }
       if (!response.ok) throw new Error(data.error || "JARVIS is unavailable.");
@@ -213,10 +236,15 @@
         showSafariGate();
         return;
       }
+      const launchToken = tokenFromLaunchURL();
+      if (launchToken) {
+        token = launchToken;
+        localStorage.setItem(storageKey, token);
+      }
       if (token) {
         const resumed = await poll();
         if (resumed) {
-          history.replaceState(null, "", "/phone/");
+          preserveHomeScreenCredential();
           startPolling();
           return;
         }
@@ -224,7 +252,8 @@
       const choosingClient = await pairFromFragment();
       if (choosingClient) return;
       if (!token) {
-        setConnection("Scan a Phone Link QR in JARVIS");
+        if (window.navigator.standalone) showExpiredShortcut();
+        else setConnection("Scan a Phone Link QR in JARVIS");
         return;
       }
       await poll();

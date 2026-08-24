@@ -1,7 +1,7 @@
 {
   "name": "JARVIS Phone Link",
   "short_name": "JARVIS",
-  "start_url": "/phone/",
+  "scope": "/phone/",
   "display": "standalone",
   "background_color": "#02080d",
   "theme_color": "#02080d",
