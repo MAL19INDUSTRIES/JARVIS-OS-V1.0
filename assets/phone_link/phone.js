@@ -11,9 +11,6 @@
   const handoffTitle = document.querySelector("#handoff-title");
   const handoffCopy = document.querySelector("#handoff-copy");
   const handoffButton = document.querySelector("#handoff-button");
-  const clientChoice = document.querySelector("#client-choice");
-  const nativeOpen = document.querySelector("#native-open");
-  const browserOpen = document.querySelector("#browser-open");
   const installTip = document.querySelector("#install-tip");
   const installTipClose = document.querySelector("#install-tip-close");
   let token = localStorage.getItem(storageKey) || "";
@@ -21,7 +18,6 @@
   let polling = false;
   let handoffData = null;
   let pollTimer = null;
-  let nativeFallbackTimer = null;
 
   const authHeaders = () => ({
     "Content-Type": "application/json",
@@ -53,7 +49,6 @@
   }
 
   async function pairInBrowser(pairToken) {
-    clientChoice.hidden = true;
     history.replaceState(null, "", "/phone/");
     setConnection("Pairing this iPhone…");
     const response = await fetch("/api/phone/pair", {
@@ -77,39 +72,11 @@
     pollTimer = window.setInterval(poll, 1100);
   }
 
-  function offerNativeApp(pairToken) {
-    const params = new URLSearchParams({ server: location.origin, token: pairToken });
-    nativeOpen.href = `jarvisphone://pair?${params.toString()}`;
-    clientChoice.hidden = false;
-    setConnection("Choose how to connect");
-    nativeOpen.onclick = () => {
-      window.clearTimeout(nativeFallbackTimer);
-      nativeFallbackTimer = window.setTimeout(() => {
-        if (document.visibilityState === "visible" && clientChoice.hidden === false) {
-          pairInBrowser(pairToken).catch((error) => {
-            clientChoice.hidden = false;
-            setConnection(error.message);
-          });
-        }
-      }, 1200);
-    };
-    browserOpen.onclick = async () => {
-      browserOpen.disabled = true;
-      try {
-        await pairInBrowser(pairToken);
-      } catch (error) {
-        clientChoice.hidden = false;
-        browserOpen.disabled = false;
-        setConnection(error.message);
-      }
-    };
-  }
-
   async function pairFromFragment() {
     const params = new URLSearchParams(location.hash.slice(1));
     const pairToken = params.get("pair");
     if (!pairToken) return false;
-    offerNativeApp(pairToken);
+    await pairInBrowser(pairToken);
     return true;
   }
 
@@ -162,10 +129,6 @@
     if (!handoffData || !handoffData.url) {
       event.preventDefault();
     }
-  });
-
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") window.clearTimeout(nativeFallbackTimer);
   });
 
   installTipClose.addEventListener("click", () => {

@@ -67,11 +67,10 @@ depend on permissions and available applications on each operating system.
 
 ## iPhone companion
 
-Phone Link includes a native, chat-only iPhone companion for confirmed phone
-actions on the same local Wi-Fi network. See the
-[iPhone setup guide](ios/JARVISPhone/README.md) to install it from Xcode. The
-Safari fallback can chat and open handoff links, but native contact, camera, and
-JARVIS notification permissions require the installed companion app.
+Phone Link currently connects through Safari on the same local Wi-Fi network.
+After the first scan, save the page to the iPhone Home Screen for direct launches
+without another QR. A [native companion](ios/JARVISPhone/README.md) is under
+development but is not yet distributed through TestFlight or the App Store.
 
 ## Hosted web application
 

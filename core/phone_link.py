@@ -456,7 +456,7 @@ def _phone_handoff_limitation(message: str, *, native: bool = False) -> str | No
     if re.search(r"\b(?:while|when)\s+(?:the\s+)?phone\s+is\s+locked\b|\bunlock\s+(?:my\s+)?phone\b", lowered):
         return "iOS does not allow a persistent JARVIS network-control session while the phone is locked."
     if not native and re.search(r"\bcamera\b|\b(?:take|capture)\s+(?:a\s+)?(?:photo|picture)\b", lowered):
-        return "Camera actions require the installed JARVIS iPhone app; the Safari chat cannot access it."
+        return "Camera actions are not available in the current Safari Phone Link."
     if re.search(r"\b(?:call|dial|phone|message|text|sms)\b", lowered):
         if not re.search(r"\d{3,}", lowered):
             return (
@@ -488,8 +488,8 @@ def _phone_capability_reply(message: str, *, native: bool = False) -> str | None
         "I can also prepare calls to phone numbers, message drafts to phone numbers, "
         "and links for Instagram, Maps, Music, or YouTube. Those phone actions appear "
         "as a confirmation card and only run when you tap it. Contacts, notifications, "
-        "Contact lookup, the JARVIS camera, and JARVIS notifications require the installed "
-        "native companion. Other apps' notifications and locked-screen control remain unavailable."
+        "Contact lookup, camera actions, JARVIS notifications, other apps' notifications, "
+        "and locked-screen control are not available in the current Safari Phone Link."
     )
 
 

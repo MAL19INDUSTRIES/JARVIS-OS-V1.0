@@ -101,7 +101,7 @@ class PhoneLinkServiceTests(unittest.TestCase):
             "Open Youtube",
         )
         self.assertIn("phone number", _phone_handoff_limitation("Call Alex"))
-        self.assertIn("installed", _phone_handoff_limitation("Open the camera"))
+        self.assertIn("not available", _phone_handoff_limitation("Open the camera"))
         self.assertIn(
             "other apps",
             _phone_handoff_limitation("Read my notifications", native=True),
@@ -140,10 +140,10 @@ class PhoneLinkServiceTests(unittest.TestCase):
         self.assertIn('<a id="handoff-button"', html)
         self.assertIn('handoffButton.setAttribute("href", data.url)', script)
         self.assertNotIn("location.href = handoffData.url", script)
-        self.assertIn("jarvisphone://pair", script)
-        self.assertIn("OPEN APP OR CONTINUE", html)
         self.assertIn("pairInBrowser(pairToken)", script)
         self.assertIn("Add to Home Screen", html)
+        self.assertNotIn("OPEN JARVIS APP", html)
+        self.assertNotIn("jarvisphone://pair", script)
 
     def test_capability_question_is_answered_without_false_model_refusal(self):
         _, result = self._pair()
