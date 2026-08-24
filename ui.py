@@ -8476,7 +8476,7 @@ class MainWindow(QMainWindow):
                         "This request came from the authenticated, remembered iPhone session. "
                         "The iPhone can chat with JARVIS, invoke JARVIS's normal desktop tools, "
                         "and use an authenticated Apple Shortcut for user-confirmed calls, "
-                        "message drafts, contact lookup, supported app links, camera capture, "
+                        "message drafts to phone numbers, supported app links, camera capture, "
                         "and JARVIS notifications. The configured Shortcut handles these phone "
                         "actions before model dispatch, subject to iOS permissions. Never say "
                         "that Phone Link can do nothing. Never claim silent messaging, access "

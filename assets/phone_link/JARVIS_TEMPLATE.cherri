@@ -1,0 +1,37 @@
+#define name JARVIS
+#define color blue
+#define glyph robot
+#define version 18.4
+
+#include 'actions/web'
+#include 'actions/media'
+
+#question connectionCode "Paste the connection code copied by desktop JARVIS" "Paste connection code here"
+
+const endpoint = text(connectionCode)
+const command = prompt("What should JARVIS do?")
+const response = jsonRequest(
+    endpoint,
+    "POST",
+    {"command": "{command}"}
+)
+const actionValue = getValue(response, "action")
+const action = getDictionary(actionValue)
+const actionURL = getValue(action, "url")
+const kindValue = getValue(action, "kind")
+@kind = "{kindValue}"
+const message = getValue(action, "message")
+
+if actionURL {
+    openURL("{actionURL}")
+} else {
+    if @kind == "camera" {
+        takePhoto()
+    } else {
+        if @kind == "notifications" {
+            showNotification("{message}", "JARVIS")
+        } else {
+            show("{message}")
+        }
+    }
+}

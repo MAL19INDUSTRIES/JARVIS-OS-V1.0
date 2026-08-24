@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import ipaddress
-import json
 import math
 import time
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from PyQt6.QtCore import Qt, QTimer, QUrl, pyqtSignal
@@ -359,7 +359,7 @@ class PhoneLinkWorkspaceWidget(QWidget):
         root.addWidget(self._stack, 1)
 
         footer = QLabel(
-            "Same trusted Wi-Fi only  ·  Apple Shortcuts  ·  iOS controls permissions"
+            "Same trusted Wi-Fi only  ·  No QR  ·  iOS controls permissions"
         )
         footer.setObjectName("phoneFootnote")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -427,16 +427,15 @@ class PhoneLinkWorkspaceWidget(QWidget):
         marker.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(marker)
 
-        title = QLabel("Build the JARVIS shortcut")
+        title = QLabel("Install JARVIS on your iPhone")
         title.setObjectName("phoneQuestion")
         title.setFont(QFont("Space Grotesk", 22, QFont.Weight.DemiBold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(title)
 
         body = QLabel(
-            "Copy the configuration, open Shortcuts, and follow the recipe in "
-            "docs/IPHONE_SHORTCUT.md. With Shortcuts iCloud Sync enabled, it will then "
-            "appear on your iPhone."
+            "JARVIS prepared the shortcut and its private connection. You only need "
+            "to approve the Apple installer."
         )
         body.setObjectName("phoneBody")
         body.setFont(QFont("Space Grotesk", 10))
@@ -444,37 +443,33 @@ class PhoneLinkWorkspaceWidget(QWidget):
         body.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(body)
 
-        self._shortcut_config = QLabel("Configuration will appear here")
+        self._shortcut_config = QLabel("SECURE CONNECTION READY")
         self._shortcut_config.setObjectName("phoneConfig")
         self._shortcut_config.setFont(QFont("JetBrains Mono", 8, QFont.Weight.Medium))
-        self._shortcut_config.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self._shortcut_config.setWordWrap(True)
-        self._shortcut_config.setMinimumHeight(76)
+        self._shortcut_config.setMinimumHeight(56)
         self._shortcut_config.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(self._shortcut_config)
 
         steps = QLabel(
-            "1  Ask for Text   ·   2  POST JSON to JARVIS   ·   "
-            "3  Read action.kind   ·   4  Run the matching iPhone action"
+            "1   Click Install Shortcut below.\n"
+            "2   Apple Shortcuts opens. Choose Add Shortcut.\n"
+            "3   When Apple asks for the connection code, paste it."
         )
-        steps.setObjectName("phoneBody")
-        steps.setFont(QFont("JetBrains Mono", 8, QFont.Weight.Medium))
+        steps.setObjectName("phoneSetupSteps")
+        steps.setFont(QFont("Space Grotesk", 11))
         steps.setWordWrap(True)
-        steps.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        steps.setAlignment(Qt.AlignmentFlag.AlignLeft)
         lay.addWidget(steps)
 
         actions = QHBoxLayout()
         actions.setSpacing(10)
         actions.addStretch(1)
-        copy = self._button("COPY CONFIG")
-        copy.clicked.connect(self._copy_shortcut_config)
-        actions.addWidget(copy)
-        open_shortcuts = self._button("OPEN SHORTCUTS", primary=True)
-        open_shortcuts.clicked.connect(
-            lambda: QDesktopServices.openUrl(QUrl("shortcuts://create-shortcut"))
-        )
-        actions.addWidget(open_shortcuts)
-        done = self._button("DONE")
+        install = self._button("INSTALL SHORTCUT", primary=True)
+        install.setMinimumWidth(180)
+        install.clicked.connect(self._install_shortcut)
+        actions.addWidget(install)
+        done = self._button("I INSTALLED IT")
         done.clicked.connect(self._finish_shortcut_setup)
         actions.addWidget(done)
         actions.addStretch(1)
@@ -558,11 +553,7 @@ class PhoneLinkWorkspaceWidget(QWidget):
     def begin_shortcut_setup(self) -> None:
         try:
             self._shortcut_setup = self.service.create_shortcut_access()
-            endpoint = str(self._shortcut_setup.get("endpoint") or "")
-            token = str(self._shortcut_setup.get("access_token") or "")
-            self._shortcut_config.setText(
-                f"URL  {endpoint}\nAUTH  Bearer {token}"
-            )
+            self._shortcut_config.setText("SECURE CONNECTION READY")
             self._status.setText("SHORTCUT SETUP")
             self._stack.setCurrentWidget(self._shortcut_page)
             device = self._shortcut_setup.get("device") or {}
@@ -572,18 +563,23 @@ class PhoneLinkWorkspaceWidget(QWidget):
         except Exception as exc:
             self._show_error(f"Shortcut setup failed: {exc}")
 
-    def _copy_shortcut_config(self) -> None:
+    def _install_shortcut(self) -> None:
         setup = self._shortcut_setup or {}
         if not setup:
             return
-        payload = {
-            "url": setup.get("endpoint"),
-            "authorization": f"Bearer {setup.get('access_token')}",
-            "method": "POST",
-            "json": {"command": "Provided Input"},
-        }
-        QApplication.clipboard().setText(json.dumps(payload, indent=2))
-        self._status.setText("CONFIG COPIED")
+        shortcut = Path(__file__).resolve().parent / "assets" / "phone_link" / "JARVIS.shortcut"
+        if not shortcut.is_file():
+            self._show_error("The JARVIS Shortcut installer is missing.")
+            return
+        QApplication.clipboard().setText(str(setup.get("endpoint") or ""))
+        opened = QDesktopServices.openUrl(QUrl.fromLocalFile(str(shortcut)))
+        if not opened:
+            self._show_error("Apple Shortcuts could not open the installer.")
+            return
+        self._shortcut_config.setText(
+            "CONNECTION CODE COPIED  ·  PASTE IT WHEN APPLE ASKS"
+        )
+        self._status.setText("APPLE APPROVAL NEEDED")
 
     def _finish_shortcut_setup(self) -> None:
         setup = self._shortcut_setup or {}
@@ -709,6 +705,7 @@ class PhoneLinkWorkspaceWidget(QWidget):
             QLabel#phoneTitle, QLabel#phoneQuestion {{ color: {c['WHITE']}; }}
             QLabel#phoneStatus {{ color: {c['PRI']}; border: 1px solid {c['BORDER_B']}; border-radius: 11px; padding: 6px 10px; letter-spacing: 1px; }}
             QLabel#phoneBody, QLabel#phoneFootnote {{ color: {c['TEXT_MED']}; }}
+            QLabel#phoneSetupSteps {{ color: {c['WHITE']}; padding: 2px 18px; }}
             QLabel#phoneConfig {{ color: {c['WHITE']}; background: {c['DARK']}; border: 1px solid {c['BORDER_B']}; border-radius: 6px; padding: 12px; }}
             QLabel#phoneSuccess {{ color: {c['GREEN']}; letter-spacing: 2px; }}
             QLabel#phoneError {{ color: {c['RED']}; letter-spacing: 2px; }}

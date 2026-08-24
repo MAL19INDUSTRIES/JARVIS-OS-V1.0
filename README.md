@@ -70,7 +70,9 @@ depend on permissions and available applications on each operating system.
 Phone Link now uses an [Apple Shortcut](docs/IPHONE_SHORTCUT.md) as the native
 iPhone action layer on the same local Wi-Fi network. The shortcut can run from
 the Home Screen, Siri, a widget, or the Action button without a QR or permanent
-browser session. A standalone [native companion](ios/JARVISPhone/README.md)
+browser session. JARVIS opens a signed Shortcut installer and copies its private
+connection code automatically, so no actions need to be assembled by hand. A
+standalone [native companion](ios/JARVISPhone/README.md)
 remains under development and is not distributed through TestFlight or the App
 Store.
 

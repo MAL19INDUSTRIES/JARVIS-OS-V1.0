@@ -173,12 +173,18 @@ class PhoneLinkServiceTests(unittest.TestCase):
             "core.phone_link._lan_host", return_value="jarvis.local"
         ):
             setup = self.service.create_shortcut_access()
-        self.assertEqual(setup["endpoint"], "http://jarvis.local:8765/api/shortcuts/action")
+        self.assertEqual(
+            setup["endpoint"],
+            f"http://jarvis.local:8765/api/shortcuts/action/{setup['access_token']}",
+        )
         device = self.service.authenticate(setup["access_token"])
         self.assertEqual(device["client_kind"], "ios-shortcut")
         response = self.service.receive_shortcut(device, "Call 4155550199")
         self.assertEqual(response["action"]["kind"], "call")
         self.assertEqual(response["action"]["url"], "tel:4155550199")
+        contact = self.service.receive_shortcut(device, "Call Alex")
+        self.assertEqual(contact["action"]["kind"], "complete")
+        self.assertIn("phone number", contact["action"]["message"])
         self.assertNotIn(setup["access_token"], self.state_path.read_text(encoding="utf-8"))
 
     def test_apple_shortcut_http_endpoint_returns_an_ios_action(self):
@@ -194,10 +200,7 @@ class PhoneLinkServiceTests(unittest.TestCase):
             request = Request(
                 setup["endpoint"],
                 data=json.dumps({"command": "Open Maps"}).encode("utf-8"),
-                headers={
-                    "Authorization": f"Bearer {setup['access_token']}",
-                    "Content-Type": "application/json",
-                },
+                headers={"Content-Type": "application/json"},
                 method="POST",
             )
             with urlopen(request, timeout=2) as response:
@@ -278,7 +281,30 @@ class PhoneLinkWorkspaceTests(unittest.TestCase):
                 window._phone_link_workspace._shortcut_page,
             )
             self.assertIsNone(window._phone_link_workspace._qr_dialog)
-            self.assertIn("/api/shortcuts/action", window._phone_link_workspace._shortcut_config.text())
+            self.assertEqual(
+                window._phone_link_workspace._shortcut_config.text(),
+                "SECURE CONNECTION READY",
+            )
+            installer = Path(__file__).resolve().parents[1] / "assets" / "phone_link" / "JARVIS.shortcut"
+            self.assertTrue(installer.read_bytes().startswith(b"AEA1"))
+            source = installer.with_name("JARVIS_TEMPLATE.cherri").read_text(encoding="utf-8")
+            self.assertIn("#question connectionCode", source)
+            self.assertNotIn("__JARVIS_SHORTCUT_TOKEN__", source)
+            shortcut_buttons = window._phone_link_workspace._shortcut_page.findChildren(
+                ui.QPushButton
+            )
+            with patch("ui_phone_link.QDesktopServices.openUrl", return_value=True) as opener:
+                next(
+                    button for button in shortcut_buttons
+                    if button.text() == "INSTALL SHORTCUT"
+                ).click()
+            self.app.processEvents()
+            self.assertEqual(QApplication.clipboard().text(), setup["endpoint"])
+            self.assertTrue(opener.call_args.args[0].toLocalFile().endswith("JARVIS.shortcut"))
+            self.assertEqual(
+                window._phone_link_workspace._status.text(),
+                "APPLE APPROVAL NEEDED",
+            )
             window._phone_link_workspace.close_requested.emit()
             self.app.processEvents()
             self.assertIs(window._core_stack.currentWidget(), window.hud)

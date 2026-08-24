@@ -219,7 +219,9 @@ class PhoneLinkService:
             self._state["devices"].append(device)
             self._write_state()
         return {
-            "endpoint": f"{self.local_base_url()}/api/shortcuts/action",
+            "endpoint": (
+                f"{self.local_base_url()}/api/shortcuts/action/{raw_device_token}"
+            ),
             "access_token": raw_device_token,
             "device": {key: value for key, value in device.items() if key != "token_hash"},
         }
@@ -329,23 +331,40 @@ class PhoneLinkService:
             raise PhoneLinkError("Message cannot be empty.")
         self.publish_message("user", clean, source=device.get("name", "iPhone"))
         client_kind = device.get("client_kind")
+        shortcut_client = client_kind == "ios-shortcut"
         native_client = client_kind in {"ios-native", "ios-shortcut"}
         capability_reply = _phone_capability_reply(
             clean,
             native=native_client,
-            shortcut=client_kind == "ios-shortcut",
+            shortcut=shortcut_client,
         )
         if capability_reply:
             self.publish_message("assistant", capability_reply, source="phone")
-            return {"accepted": True, "handled": "capabilities"}
-        handoff = _phone_handoff(clean, native=native_client)
+            return {
+                "accepted": True,
+                "handled": "capabilities",
+                "message": capability_reply,
+            }
+        handoff = _phone_handoff(
+            clean,
+            native=native_client,
+            contacts=client_kind == "ios-native",
+        )
         if handoff:
             self.publish_message("assistant", handoff["message"], source="phone")
             return {"accepted": True, "handoff": handoff}
-        limitation = _phone_handoff_limitation(clean, native=native_client)
+        limitation = _phone_handoff_limitation(
+            clean,
+            native=native_client,
+            shortcut=shortcut_client,
+        )
         if limitation:
             self.publish_message("assistant", limitation, source="phone")
-            return {"accepted": True, "handled": "phone-action-limitation"}
+            return {
+                "accepted": True,
+                "handled": "phone-action-limitation",
+                "message": limitation,
+            }
         callback = self._dispatch
         if callback is None:
             raise PhoneLinkError("JARVIS is not ready for messages yet.")
@@ -363,7 +382,10 @@ class PhoneLinkService:
             "action": {
                 "kind": "complete",
                 "label": "Sent to JARVIS",
-                "message": "The request was sent to JARVIS on your Mac.",
+                "message": str(
+                    result.get("message")
+                    or "The request was sent to JARVIS on your Mac."
+                ),
             },
         }
 
@@ -380,8 +402,14 @@ class PhoneLinkService:
             return True
 
 
-def _phone_handoff(message: str, *, native: bool = False) -> dict | None:
+def _phone_handoff(
+    message: str,
+    *,
+    native: bool = False,
+    contacts: bool | None = None,
+) -> dict | None:
     """Build an explicit, user-tapped iOS handoff for narrow safe actions."""
+    contact_actions = native if contacts is None else contacts
     lowered = " ".join(message.casefold().split())
     lowered = re.sub(r"^(?:please\s+|can you\s+|could you\s+|would you\s+)", "", lowered)
     lowered = re.sub(r"\s+(?:on|from) my (?:iphone|phone)$", "", lowered)
@@ -417,7 +445,7 @@ def _phone_handoff(message: str, *, native: bool = False) -> dict | None:
                 "url": f"tel:{number}",
                 "message": "I prepared the call. Tap below to confirm it on your iPhone.",
             }
-        if native and target:
+        if contact_actions and target:
             return {
                 "kind": "call-contact",
                 "label": f"Call {target}",
@@ -454,7 +482,7 @@ def _phone_handoff(message: str, *, native: bool = False) -> dict | None:
                     "copy": draft,
                     "message": "I prepared the message. Tap below to review and send it yourself.",
                 }
-            if native and target:
+            if contact_actions and target:
                 draft = body.strip() if separator else ""
                 return {
                     "kind": "message-contact",
@@ -501,7 +529,12 @@ def _phone_handoff(message: str, *, native: bool = False) -> dict | None:
     return None
 
 
-def _phone_handoff_limitation(message: str, *, native: bool = False) -> str | None:
+def _phone_handoff_limitation(
+    message: str,
+    *,
+    native: bool = False,
+    shortcut: bool = False,
+) -> str | None:
     lowered = " ".join(str(message or "").casefold().split())
     if re.search(r"\b(?:read|show|check|summarize)\b.*\bnotifications?\b", lowered):
         return "iOS does not allow JARVIS to read notifications belonging to other apps."
@@ -511,6 +544,11 @@ def _phone_handoff_limitation(message: str, *, native: bool = False) -> str | No
         return "Camera actions are not available in the current Safari Phone Link."
     if re.search(r"\b(?:call|dial|phone|message|text|sms)\b", lowered):
         if not re.search(r"\d{3,}", lowered):
+            if shortcut:
+                return (
+                    "This Shortcut cannot safely resolve contact names yet. Include the "
+                    "phone number and I will prepare the call or message."
+                )
             return (
                 "I can prepare that handoff, but this web link cannot read your iPhone "
                 "contacts. Include the phone number and I will create the confirmation card."
@@ -534,7 +572,7 @@ def _phone_capability_reply(
     if shortcut:
         return (
             "Through the JARVIS Apple Shortcut, I can prepare calls and message drafts "
-            "using phone numbers or contacts, open supported app links, run the camera "
+            "using phone numbers, open supported app links, run the camera "
             "branch, and show a JARVIS notification. iOS still controls permissions and "
             "may require confirmation or an unlocked phone for sensitive actions."
         )
@@ -711,8 +749,13 @@ class _PhoneLinkHandler(BaseHTTPRequestHandler):
                 result = self.phone_link.receive_chat(device, str(self._body().get("message", "")))
                 self._json(HTTPStatus.ACCEPTED, result)
                 return
-            if route == "/api/shortcuts/action":
+            if route == "/api/shortcuts/action" or route.startswith(
+                "/api/shortcuts/action/"
+            ):
                 device = self._device()
+                if device is None and route.startswith("/api/shortcuts/action/"):
+                    path_token = route.removeprefix("/api/shortcuts/action/").strip("/")
+                    device = self.phone_link.authenticate(path_token)
                 if device is None or device.get("client_kind") != "ios-shortcut":
                     self._json(HTTPStatus.UNAUTHORIZED, {"error": "This JARVIS Shortcut is not authorized."})
                     return
