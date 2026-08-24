@@ -190,14 +190,39 @@ class PhoneLinkService:
                 item: expiry for item, expiry in self._pairings.items() if expiry > now
             }
             self._pairings[_token_hash(token)] = now + PAIRING_LIFETIME_SECONDS
-        host = _lan_host()
-        port = self.bound_port
-        suffix = "" if port == 80 else f":{port}"
         return PairingInfo(
-            url=f"http://{host}{suffix}/phone/#pair={token}",
+            url=f"{self.local_base_url()}/phone/#pair={token}",
             token=token,
             expires_at=now + PAIRING_LIFETIME_SECONDS,
         )
+
+    def local_base_url(self) -> str:
+        host = _lan_host()
+        port = self.bound_port
+        suffix = "" if port == 80 else f":{port}"
+        return f"http://{host}{suffix}"
+
+    def create_shortcut_access(self, device_name: str = "JARVIS Shortcut") -> dict:
+        """Create a remembered bearer credential for an Apple Shortcut."""
+        self.start()
+        now = self._clock()
+        raw_device_token = secrets.token_urlsafe(48)
+        device = {
+            "id": uuid.uuid4().hex,
+            "name": str(device_name or "JARVIS Shortcut").strip()[:80] or "JARVIS Shortcut",
+            "client_kind": "ios-shortcut",
+            "token_hash": _token_hash(raw_device_token),
+            "paired_at": now,
+            "last_seen": now,
+        }
+        with self._lock:
+            self._state["devices"].append(device)
+            self._write_state()
+        return {
+            "endpoint": f"{self.local_base_url()}/api/shortcuts/action",
+            "access_token": raw_device_token,
+            "device": {key: value for key, value in device.items() if key != "token_hash"},
+        }
 
     def devices(self) -> list[dict]:
         with self._lock:
@@ -303,8 +328,13 @@ class PhoneLinkService:
         if not clean:
             raise PhoneLinkError("Message cannot be empty.")
         self.publish_message("user", clean, source=device.get("name", "iPhone"))
-        native_client = device.get("client_kind") == "ios-native"
-        capability_reply = _phone_capability_reply(clean, native=native_client)
+        client_kind = device.get("client_kind")
+        native_client = client_kind in {"ios-native", "ios-shortcut"}
+        capability_reply = _phone_capability_reply(
+            clean,
+            native=native_client,
+            shortcut=client_kind == "ios-shortcut",
+        )
         if capability_reply:
             self.publish_message("assistant", capability_reply, source="phone")
             return {"accepted": True, "handled": "capabilities"}
@@ -321,6 +351,21 @@ class PhoneLinkService:
             raise PhoneLinkError("JARVIS is not ready for messages yet.")
         callback(clean)
         return {"accepted": True}
+
+    def receive_shortcut(self, device: dict, text: str) -> dict:
+        """Route one Apple Shortcut command and return a native action contract."""
+        result = self.receive_chat(device, text)
+        action = result.get("handoff")
+        if isinstance(action, dict):
+            return {"accepted": True, "action": action}
+        return {
+            "accepted": True,
+            "action": {
+                "kind": "complete",
+                "label": "Sent to JARVIS",
+                "message": "The request was sent to JARVIS on your Mac.",
+            },
+        }
 
     def rate_allowed(self, address: str, action: str, *, limit: int, seconds: float) -> bool:
         now = self._clock()
@@ -473,7 +518,12 @@ def _phone_handoff_limitation(message: str, *, native: bool = False) -> str | No
     return None
 
 
-def _phone_capability_reply(message: str, *, native: bool = False) -> str | None:
+def _phone_capability_reply(
+    message: str,
+    *,
+    native: bool = False,
+    shortcut: bool = False,
+) -> str | None:
     lowered = " ".join(str(message or "").casefold().split())
     asks_about_phone = any(term in lowered for term in (
         "what can you do", "what can jarvis do", "control my phone",
@@ -481,6 +531,13 @@ def _phone_capability_reply(message: str, *, native: bool = False) -> str | None
     ))
     if not asks_about_phone:
         return None
+    if shortcut:
+        return (
+            "Through the JARVIS Apple Shortcut, I can prepare calls and message drafts "
+            "using phone numbers or contacts, open supported app links, run the camera "
+            "branch, and show a JARVIS notification. iOS still controls permissions and "
+            "may require confirmation or an unlocked phone for sensitive actions."
+        )
     if native:
         return (
             "From the JARVIS iPhone app, I can prepare calls and message drafts using "
@@ -653,6 +710,19 @@ class _PhoneLinkHandler(BaseHTTPRequestHandler):
                     return
                 result = self.phone_link.receive_chat(device, str(self._body().get("message", "")))
                 self._json(HTTPStatus.ACCEPTED, result)
+                return
+            if route == "/api/shortcuts/action":
+                device = self._device()
+                if device is None or device.get("client_kind") != "ios-shortcut":
+                    self._json(HTTPStatus.UNAUTHORIZED, {"error": "This JARVIS Shortcut is not authorized."})
+                    return
+                if not self.phone_link.rate_allowed(device["id"], "shortcut", limit=30, seconds=60):
+                    self._json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "Please wait before running JARVIS again."})
+                    return
+                result = self.phone_link.receive_shortcut(
+                    device, str(self._body().get("command", ""))
+                )
+                self._json(HTTPStatus.OK, result)
                 return
             self._json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
         except PhoneLinkError as exc:

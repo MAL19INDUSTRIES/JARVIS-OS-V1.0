@@ -67,10 +67,12 @@ depend on permissions and available applications on each operating system.
 
 ## iPhone companion
 
-Phone Link currently connects through Safari on the same local Wi-Fi network.
-After the first scan, save the page to the iPhone Home Screen for direct launches
-without another QR. A [native companion](ios/JARVISPhone/README.md) is under
-development but is not yet distributed through TestFlight or the App Store.
+Phone Link now uses an [Apple Shortcut](docs/IPHONE_SHORTCUT.md) as the native
+iPhone action layer on the same local Wi-Fi network. The shortcut can run from
+the Home Screen, Siri, a widget, or the Action button without a QR or permanent
+browser session. A standalone [native companion](ios/JARVISPhone/README.md)
+remains under development and is not distributed through TestFlight or the App
+Store.
 
 ## Hosted web application
 

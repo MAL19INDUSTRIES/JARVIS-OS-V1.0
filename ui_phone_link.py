@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import ipaddress
+import json
 import math
 import time
 from urllib.parse import parse_qs, urlparse
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QFont, QImage, QPixmap
+from PyQt6.QtCore import Qt, QTimer, QUrl, pyqtSignal
+from PyQt6.QtGui import QDesktopServices, QFont, QImage, QPixmap
 from PyQt6.QtWidgets import (
+    QApplication,
     QDialog,
     QFrame,
     QGraphicsOpacityEffect,
@@ -293,6 +295,7 @@ class PhoneLinkWorkspaceWidget(QWidget):
         self.service = service
         self.colors = dict(palette)
         self._pairing = None
+        self._shortcut_setup: dict | None = None
         self._qr_dialog: PhoneLinkQrDialog | None = None
         self._known_device_ids: set[str] = set()
         self._build()
@@ -345,12 +348,18 @@ class PhoneLinkWorkspaceWidget(QWidget):
         self._confirm_page = self._build_confirm_page()
         self._linked_page = self._build_linked_page()
         self._error_page = self._build_error_page()
-        for page in (self._confirm_page, self._linked_page, self._error_page):
+        self._shortcut_page = self._build_shortcut_page()
+        for page in (
+            self._confirm_page,
+            self._shortcut_page,
+            self._linked_page,
+            self._error_page,
+        ):
             self._stack.addWidget(page)
         root.addWidget(self._stack, 1)
 
         footer = QLabel(
-            "Same trusted Wi-Fi only  ·  Single-use QR  ·  Phone actions require your tap"
+            "Same trusted Wi-Fi only  ·  Apple Shortcuts  ·  iOS controls permissions"
         )
         footer.setObjectName("phoneFootnote")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -388,7 +397,8 @@ class PhoneLinkWorkspaceWidget(QWidget):
         question.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(question)
         explainer = QLabel(
-            "JARVIS will create a temporary QR code. Scan it once to remember this iPhone."
+            "Create one Apple Shortcut that talks directly to this Mac. No QR, browser "
+            "session, App Store build, or repeated pairing."
         )
         explainer.setObjectName("phoneBody")
         explainer.setFont(QFont("Space Grotesk", 11))
@@ -401,10 +411,72 @@ class PhoneLinkWorkspaceWidget(QWidget):
         cancel = self._button("NOT NOW")
         cancel.clicked.connect(self.close_requested)
         actions.addWidget(cancel)
-        allow = self._button("ALLOW + CREATE QR", primary=True)
-        allow.setMinimumWidth(184)
-        allow.clicked.connect(self.begin_pairing)
+        allow = self._button("SET UP APPLE SHORTCUT", primary=True)
+        allow.setMinimumWidth(210)
+        allow.clicked.connect(self.begin_shortcut_setup)
         actions.addWidget(allow)
+        actions.addStretch(1)
+        lay.addLayout(actions)
+        return page
+
+    def _build_shortcut_page(self) -> QWidget:
+        page, lay = self._center_card()
+        marker = QLabel("APPLE SHORTCUT  /  ONE-TIME SETUP")
+        marker.setObjectName("phoneMarker")
+        marker.setFont(QFont("JetBrains Mono", 8, QFont.Weight.Medium))
+        marker.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(marker)
+
+        title = QLabel("Build the JARVIS shortcut")
+        title.setObjectName("phoneQuestion")
+        title.setFont(QFont("Space Grotesk", 22, QFont.Weight.DemiBold))
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(title)
+
+        body = QLabel(
+            "Copy the configuration, open Shortcuts, and follow the recipe in "
+            "docs/IPHONE_SHORTCUT.md. With Shortcuts iCloud Sync enabled, it will then "
+            "appear on your iPhone."
+        )
+        body.setObjectName("phoneBody")
+        body.setFont(QFont("Space Grotesk", 10))
+        body.setWordWrap(True)
+        body.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(body)
+
+        self._shortcut_config = QLabel("Configuration will appear here")
+        self._shortcut_config.setObjectName("phoneConfig")
+        self._shortcut_config.setFont(QFont("JetBrains Mono", 8, QFont.Weight.Medium))
+        self._shortcut_config.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._shortcut_config.setWordWrap(True)
+        self._shortcut_config.setMinimumHeight(76)
+        self._shortcut_config.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(self._shortcut_config)
+
+        steps = QLabel(
+            "1  Ask for Text   ·   2  POST JSON to JARVIS   ·   "
+            "3  Read action.kind   ·   4  Run the matching iPhone action"
+        )
+        steps.setObjectName("phoneBody")
+        steps.setFont(QFont("JetBrains Mono", 8, QFont.Weight.Medium))
+        steps.setWordWrap(True)
+        steps.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(steps)
+
+        actions = QHBoxLayout()
+        actions.setSpacing(10)
+        actions.addStretch(1)
+        copy = self._button("COPY CONFIG")
+        copy.clicked.connect(self._copy_shortcut_config)
+        actions.addWidget(copy)
+        open_shortcuts = self._button("OPEN SHORTCUTS", primary=True)
+        open_shortcuts.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl("shortcuts://create-shortcut"))
+        )
+        actions.addWidget(open_shortcuts)
+        done = self._button("DONE")
+        done.clicked.connect(self._finish_shortcut_setup)
+        actions.addWidget(done)
         actions.addStretch(1)
         lay.addLayout(actions)
         return page
@@ -455,15 +527,16 @@ class PhoneLinkWorkspaceWidget(QWidget):
         self._error.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(self._error)
         retry = self._button("TRY AGAIN", primary=True)
-        retry.clicked.connect(self.begin_pairing)
+        retry.clicked.connect(self.begin_shortcut_setup)
         lay.addWidget(retry, 0, Qt.AlignmentFlag.AlignHCenter)
         return page
 
     def open_workspace(self) -> None:
         devices = self.service.devices()
         self._known_device_ids = {str(item.get("id")) for item in devices}
-        if devices:
-            self._show_linked(devices[-1])
+        shortcuts = [item for item in devices if item.get("client_kind") == "ios-shortcut"]
+        if shortcuts:
+            self._show_linked(shortcuts[-1])
         else:
             self.show_confirmation()
         self._timer.start()
@@ -481,6 +554,45 @@ class PhoneLinkWorkspaceWidget(QWidget):
         self._pairing = None
         self._status.setText("PERMISSION REQUIRED")
         self._stack.setCurrentWidget(self._confirm_page)
+
+    def begin_shortcut_setup(self) -> None:
+        try:
+            self._shortcut_setup = self.service.create_shortcut_access()
+            endpoint = str(self._shortcut_setup.get("endpoint") or "")
+            token = str(self._shortcut_setup.get("access_token") or "")
+            self._shortcut_config.setText(
+                f"URL  {endpoint}\nAUTH  Bearer {token}"
+            )
+            self._status.setText("SHORTCUT SETUP")
+            self._stack.setCurrentWidget(self._shortcut_page)
+            device = self._shortcut_setup.get("device") or {}
+            self._known_device_ids.add(str(device.get("id") or ""))
+        except PhoneLinkError as exc:
+            self._show_error(str(exc))
+        except Exception as exc:
+            self._show_error(f"Shortcut setup failed: {exc}")
+
+    def _copy_shortcut_config(self) -> None:
+        setup = self._shortcut_setup or {}
+        if not setup:
+            return
+        payload = {
+            "url": setup.get("endpoint"),
+            "authorization": f"Bearer {setup.get('access_token')}",
+            "method": "POST",
+            "json": {"command": "Provided Input"},
+        }
+        QApplication.clipboard().setText(json.dumps(payload, indent=2))
+        self._status.setText("CONFIG COPIED")
+
+    def _finish_shortcut_setup(self) -> None:
+        setup = self._shortcut_setup or {}
+        device = setup.get("device") if isinstance(setup.get("device"), dict) else {}
+        if device:
+            self._show_linked(device)
+            self.pairing_changed.emit({"state": "paired", "device": device})
+        else:
+            self.show_confirmation()
 
     def begin_pairing(self) -> None:
         try:
@@ -555,11 +667,16 @@ class PhoneLinkWorkspaceWidget(QWidget):
         self._pairing = None
         name = str(device.get("name") or "iPhone")
         self._device_title.setText(f"{name} remembered")
-        self._device_detail.setText(
-            "Launch JARVIS from the iPhone Home Screen whenever this Mac is running—no "
-            "new QR needed. If you did not save it yet, use Safari’s Share button and "
-            "choose Add to Home Screen."
-        )
+        if device.get("client_kind") == "ios-shortcut":
+            self._device_detail.setText(
+                "Run the JARVIS shortcut from your iPhone Home Screen, Siri, widget, or "
+                "Action button while this Mac is available on the same Wi-Fi."
+            )
+        else:
+            self._device_detail.setText(
+                "This legacy Safari connection is remembered. Set up the Apple Shortcut "
+                "for a more reliable phone action path."
+            )
         self._revoke.setProperty("device_id", str(device.get("id") or ""))
         self._status.setText("IPHONE LINKED")
         self._stack.setCurrentWidget(self._linked_page)
@@ -592,6 +709,7 @@ class PhoneLinkWorkspaceWidget(QWidget):
             QLabel#phoneTitle, QLabel#phoneQuestion {{ color: {c['WHITE']}; }}
             QLabel#phoneStatus {{ color: {c['PRI']}; border: 1px solid {c['BORDER_B']}; border-radius: 11px; padding: 6px 10px; letter-spacing: 1px; }}
             QLabel#phoneBody, QLabel#phoneFootnote {{ color: {c['TEXT_MED']}; }}
+            QLabel#phoneConfig {{ color: {c['WHITE']}; background: {c['DARK']}; border: 1px solid {c['BORDER_B']}; border-radius: 6px; padding: 12px; }}
             QLabel#phoneSuccess {{ color: {c['GREEN']}; letter-spacing: 2px; }}
             QLabel#phoneError {{ color: {c['RED']}; letter-spacing: 2px; }}
             QFrame#phoneCard {{ background: {c['PANEL']}; border: 1px solid {c['BORDER_B']}; border-radius: 12px; }}

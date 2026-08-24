@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
+from urllib.request import Request, urlopen
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -167,6 +168,45 @@ class PhoneLinkServiceTests(unittest.TestCase):
         response = self.service.receive_chat(device, "Open the camera")
         self.assertEqual(response["handoff"]["kind"], "camera")
 
+    def test_apple_shortcut_gets_a_remembered_credential_and_action_contract(self):
+        with patch.object(self.service, "start"), patch(
+            "core.phone_link._lan_host", return_value="jarvis.local"
+        ):
+            setup = self.service.create_shortcut_access()
+        self.assertEqual(setup["endpoint"], "http://jarvis.local:8765/api/shortcuts/action")
+        device = self.service.authenticate(setup["access_token"])
+        self.assertEqual(device["client_kind"], "ios-shortcut")
+        response = self.service.receive_shortcut(device, "Call 4155550199")
+        self.assertEqual(response["action"]["kind"], "call")
+        self.assertEqual(response["action"]["url"], "tel:4155550199")
+        self.assertNotIn(setup["access_token"], self.state_path.read_text(encoding="utf-8"))
+
+    def test_apple_shortcut_http_endpoint_returns_an_ios_action(self):
+        service = PhoneLinkService(
+            state_path=Path(self.temporary.name) / "shortcut-http.json",
+            host="127.0.0.1",
+            port=0,
+            dispatch=self.dispatched.append,
+        )
+        try:
+            with patch("core.phone_link._lan_host", return_value="127.0.0.1"):
+                setup = service.create_shortcut_access()
+            request = Request(
+                setup["endpoint"],
+                data=json.dumps({"command": "Open Maps"}).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {setup['access_token']}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+            with urlopen(request, timeout=2) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            self.assertEqual(payload["action"]["kind"], "open")
+            self.assertEqual(payload["action"]["url"], "https://maps.apple.com/")
+        finally:
+            service.stop()
+
     def test_mobile_handoff_is_a_native_link_not_async_navigation(self):
         root = Path(__file__).resolve().parents[1] / "assets" / "phone_link"
         html = (root / "index.html").read_text(encoding="utf-8")
@@ -220,6 +260,25 @@ class PhoneLinkWorkspaceTests(unittest.TestCase):
                 "You want me to access your phone?",
                 window._phone_link_workspace._confirm_page.findChildren(ui.QLabel)[1].text(),
             )
+            setup = {
+                "endpoint": "http://jarvis.local:8765/api/shortcuts/action",
+                "access_token": "shortcut-test-token",
+                "device": {
+                    "id": "shortcut-device",
+                    "name": "JARVIS Shortcut",
+                    "client_kind": "ios-shortcut",
+                },
+            }
+            with patch.object(service, "create_shortcut_access", return_value=setup):
+                buttons = window._phone_link_workspace._confirm_page.findChildren(ui.QPushButton)
+                next(button for button in buttons if button.text() == "SET UP APPLE SHORTCUT").click()
+            self.app.processEvents()
+            self.assertIs(
+                window._phone_link_workspace._stack.currentWidget(),
+                window._phone_link_workspace._shortcut_page,
+            )
+            self.assertIsNone(window._phone_link_workspace._qr_dialog)
+            self.assertIn("/api/shortcuts/action", window._phone_link_workspace._shortcut_config.text())
             window._phone_link_workspace.close_requested.emit()
             self.app.processEvents()
             self.assertIs(window._core_stack.currentWidget(), window.hud)
