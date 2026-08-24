@@ -33,6 +33,57 @@ body {
 
 button, textarea, .action-link { font: inherit; }
 
+.browser-gate {
+  width: min(100%, 520px);
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: max(72px, env(safe-area-inset-top)) 28px max(40px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+}
+.browser-gate[hidden] { display: none; }
+.gate-mark {
+  color: var(--cyan);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .18em;
+}
+.browser-gate h1 {
+  margin-top: 12px;
+  font-size: 30px;
+  font-weight: 570;
+  letter-spacing: -.025em;
+}
+.browser-gate > p {
+  max-width: 38ch;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.55;
+}
+.browser-gate ol {
+  margin: 28px 0 24px;
+  padding-left: 21px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.8;
+}
+.browser-gate button {
+  min-height: 46px;
+  border: 1px solid var(--cyan);
+  border-radius: 9px;
+  padding: 0 18px;
+  background: var(--cyan);
+  color: #001016;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .11em;
+}
+.browser-gate button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+.copy-status { min-height: 18px; margin-top: 12px; color: var(--cyan-dim); font-size: 12px; }
+
 .app-shell {
   width: min(100%, 680px);
   height: 100dvh;

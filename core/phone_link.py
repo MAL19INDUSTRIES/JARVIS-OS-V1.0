@@ -31,6 +31,7 @@ DEFAULT_PORT = 8765
 PAIRING_LIFETIME_SECONDS = 120
 MAX_BODY_BYTES = 16_384
 MAX_MESSAGE_CHARS = 2_000
+IOS_NON_SAFARI_MARKERS = ("crios/", "fxios/", "edgios/", "opios/", "duckduckgo", "gsa/")
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,12 @@ def _is_local_client(value: str) -> bool:
         return address.is_private or address.is_loopback or address.is_link_local
     except ValueError:
         return False
+
+
+def _is_non_safari_ios_browser(user_agent: str) -> bool:
+    lowered = str(user_agent or "").casefold()
+    is_ios = any(marker in lowered for marker in ("iphone", "ipad", "ipod"))
+    return is_ios and any(marker in lowered for marker in IOS_NON_SAFARI_MARKERS)
 
 
 class PhoneLinkService:
@@ -487,8 +494,8 @@ def _phone_capability_reply(message: str, *, native: bool = False) -> str | None
         "From this linked iPhone, you can chat with me and control JARVIS on your Mac. "
         "I can also prepare calls to phone numbers, message drafts to phone numbers, "
         "and links for Instagram, Maps, Music, or YouTube. Those phone actions appear "
-        "as a confirmation card and only run when you tap it. Contacts, notifications, "
-        "Contact lookup, camera actions, JARVIS notifications, other apps' notifications, "
+        "as a confirmation card and only run when you tap it. Contact lookup, camera "
+        "actions, JARVIS notifications, other apps' notifications, "
         "and locked-screen control are not available in the current Safari Phone Link."
     )
 
@@ -559,6 +566,15 @@ class _PhoneLinkHandler(BaseHTTPRequestHandler):
         self._json(HTTPStatus.FORBIDDEN, {"error": "Phone Link only accepts local-network devices."})
         return False
 
+    def _safari_or_reject(self) -> bool:
+        if not _is_non_safari_ios_browser(self.headers.get("User-Agent", "")):
+            return True
+        self._json(
+            HTTPStatus.FORBIDDEN,
+            {"error": "Phone Link requires Safari on iPhone. The pairing code was not used."},
+        )
+        return False
+
     def do_GET(self) -> None:
         if not self._local_or_reject():
             return
@@ -592,6 +608,8 @@ class _PhoneLinkHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
         if route.path == "/api/phone/session":
+            if not self._safari_or_reject():
+                return
             device = self._device()
             if device is None:
                 self._json(HTTPStatus.UNAUTHORIZED, {"error": "Pair this iPhone with JARVIS first."})
@@ -610,6 +628,8 @@ class _PhoneLinkHandler(BaseHTTPRequestHandler):
         route = urlparse(self.path).path
         try:
             if route == "/api/phone/pair":
+                if not self._safari_or_reject():
+                    return
                 if not self.phone_link.rate_allowed(self.client_address[0], "pair", limit=8, seconds=60):
                     self._json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "Too many pairing attempts."})
                     return
@@ -622,6 +642,8 @@ class _PhoneLinkHandler(BaseHTTPRequestHandler):
                 self._json(HTTPStatus.CREATED, result)
                 return
             if route == "/api/phone/chat":
+                if not self._safari_or_reject():
+                    return
                 device = self._device()
                 if device is None:
                     self._json(HTTPStatus.UNAUTHORIZED, {"error": "This iPhone link was revoked."})

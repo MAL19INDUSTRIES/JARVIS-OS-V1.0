@@ -20,6 +20,7 @@ from core.phone_link import (
     PhoneLinkService,
     _phone_handoff,
     _phone_handoff_limitation,
+    _is_non_safari_ios_browser,
 )
 from ui_phone_link import PhoneLinkWorkspaceWidget, _is_direct_phone_url
 
@@ -74,6 +75,19 @@ class PhoneLinkServiceTests(unittest.TestCase):
             )
         )
         self.assertFalse(_is_direct_phone_url("jarvisphone://pair?token=abcdefghijklmnopqrstuvwxyz"))
+
+    def test_ios_chrome_is_rejected_without_rejecting_safari_or_native_clients(self):
+        chrome = (
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) "
+            "AppleWebKit/605.1.15 CriOS/128.0 Mobile/15E148 Safari/604.1"
+        )
+        safari = (
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) "
+            "AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1"
+        )
+        self.assertTrue(_is_non_safari_ios_browser(chrome))
+        self.assertFalse(_is_non_safari_ios_browser(safari))
+        self.assertFalse(_is_non_safari_ios_browser("JARVIS/1 CFNetwork Darwin"))
 
     def test_revoked_phone_can_no_longer_authenticate(self):
         _, result = self._pair()
@@ -160,6 +174,8 @@ class PhoneLinkServiceTests(unittest.TestCase):
         self.assertNotIn("location.href = handoffData.url", script)
         self.assertIn("pairInBrowser(pairToken)", script)
         self.assertIn("Add to Home Screen", html)
+        self.assertIn("SAFARI REQUIRED", html)
+        self.assertIn("function requiresSafari()", script)
         self.assertNotIn("OPEN JARVIS APP", html)
         self.assertNotIn("jarvisphone://pair", script)
 

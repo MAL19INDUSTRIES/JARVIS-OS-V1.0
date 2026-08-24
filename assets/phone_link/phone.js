@@ -1,5 +1,9 @@
 (() => {
   const storageKey = "jarvis.phone-link.token.v1";
+  const appShell = document.querySelector("#app-shell");
+  const safariRequired = document.querySelector("#safari-required");
+  const copySafariLink = document.querySelector("#copy-safari-link");
+  const copyStatus = document.querySelector("#copy-status");
   const transcript = document.querySelector("#transcript");
   const opening = document.querySelector("#opening");
   const connection = document.querySelector("#connection");
@@ -23,6 +27,44 @@
     "Content-Type": "application/json",
     "Authorization": `Bearer ${token}`,
   });
+
+  function requiresSafari() {
+    const userAgent = navigator.userAgent || "";
+    const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+    if (!isIOS || navigator.standalone === true) return false;
+    const isSafari = /Version\/\d+(?:\.\d+)*.*Safari\//i.test(userAgent);
+    const isAnotherBrowser = /CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo|GSA/i.test(userAgent);
+    return !isSafari || isAnotherBrowser;
+  }
+
+  function showSafariGate() {
+    appShell.hidden = true;
+    safariRequired.hidden = false;
+  }
+
+  async function copyCurrentLink() {
+    const value = location.href;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const field = document.createElement("textarea");
+        field.value = value;
+        field.setAttribute("readonly", "");
+        field.style.position = "fixed";
+        field.style.opacity = "0";
+        document.body.append(field);
+        field.select();
+        const copied = document.execCommand("copy");
+        field.remove();
+        if (!copied) throw new Error("Copy failed");
+      }
+      copyStatus.textContent = "Copied. Open Safari and paste the link.";
+      copySafariLink.textContent = "COPIED";
+    } catch (_error) {
+      copyStatus.textContent = "Press and hold the address bar to copy, then paste it in Safari.";
+    }
+  }
 
   function setConnection(text, ready = false) {
     connection.textContent = text;
@@ -136,6 +178,8 @@
     installTip.hidden = true;
   });
 
+  copySafariLink.addEventListener("click", copyCurrentLink);
+
   input.addEventListener("input", () => {
     input.style.height = "auto";
     input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
@@ -165,6 +209,10 @@
 
   (async () => {
     try {
+      if (requiresSafari()) {
+        showSafariGate();
+        return;
+      }
       if (token) {
         const resumed = await poll();
         if (resumed) {

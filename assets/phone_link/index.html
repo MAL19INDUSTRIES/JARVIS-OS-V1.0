@@ -13,7 +13,18 @@
   <link rel="stylesheet" href="phone.css">
 </head>
 <body>
-  <main class="app-shell">
+  <section id="safari-required" class="browser-gate" hidden aria-labelledby="safari-title">
+    <span class="gate-mark">SAFARI REQUIRED</span>
+    <h1 id="safari-title">Open JARVIS in Safari</h1>
+    <p>Phone Link has not used this pairing code. Chrome cannot connect.</p>
+    <ol>
+      <li>Copy the secure local link below.</li>
+      <li>Open Safari and paste it into the address bar.</li>
+    </ol>
+    <button id="copy-safari-link" type="button">COPY JARVIS LINK</button>
+    <span id="copy-status" class="copy-status" role="status"></span>
+  </section>
+  <main id="app-shell" class="app-shell">
     <header class="topbar">
       <div class="identity">
         <span class="presence" aria-hidden="true"></span>
