@@ -17,12 +17,12 @@ After installation, run **JARVIS** from the Shortcuts app, the Home Screen, Siri
 ## Try these commands
 
 - `Call 4155550123`
-- `Text 4155550123 saying I am on my way`
+- `Text 4155550123 saying I am on my way` (review, then confirm Send)
 - `Open Instagram`, `Open Maps`, `Open Music`, or `Open YouTube`
 - `Open the camera`
 - `Enable JARVIS notifications`
 
-Other requests are forwarded to desktop JARVIS. Calls, messages, camera access, notifications, and app launches remain subject to iOS permissions and confirmation behavior. iOS does not provide unrestricted background or locked-screen control.
+Other requests are forwarded to desktop JARVIS. Message commands use Apple's native Send Message action and show the composed message for confirmation before sending. Calls, messages, camera access, notifications, and app launches remain subject to iOS permissions. iOS does not provide unrestricted background or locked-screen control.
 
 ## Revoke access
 

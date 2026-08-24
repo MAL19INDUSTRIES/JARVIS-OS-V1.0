@@ -501,9 +501,9 @@ class PhoneLinkWorkspaceWidget(QWidget):
         self._revoke = self._button("REVOKE IPHONE")
         self._revoke.clicked.connect(self._revoke_current)
         actions.addWidget(self._revoke)
-        another = self._button("LINK ANOTHER", primary=True)
-        another.clicked.connect(self.show_confirmation)
-        actions.addWidget(another)
+        self._another = self._button("LINK ANOTHER", primary=True)
+        self._another.clicked.connect(self.show_confirmation)
+        actions.addWidget(self._another)
         actions.addStretch(1)
         lay.addLayout(actions)
         return page
@@ -666,13 +666,16 @@ class PhoneLinkWorkspaceWidget(QWidget):
         if device.get("client_kind") == "ios-shortcut":
             self._device_detail.setText(
                 "Run the JARVIS shortcut from your iPhone Home Screen, Siri, widget, or "
-                "Action button while this Mac is available on the same Wi-Fi."
+                "Action button while this Mac is available on the same Wi-Fi. Choose "
+                "Update Shortcut whenever JARVIS adds new phone actions."
             )
+            self._another.setText("UPDATE SHORTCUT")
         else:
             self._device_detail.setText(
                 "This legacy Safari connection is remembered. Set up the Apple Shortcut "
                 "for a more reliable phone action path."
             )
+            self._another.setText("SET UP SHORTCUT")
         self._revoke.setProperty("device_id", str(device.get("id") or ""))
         self._status.setText("IPHONE LINKED")
         self._stack.setCurrentWidget(self._linked_page)

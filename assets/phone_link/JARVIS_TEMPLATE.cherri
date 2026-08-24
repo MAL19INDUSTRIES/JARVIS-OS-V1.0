@@ -5,6 +5,8 @@
 
 #include 'actions/web'
 #include 'actions/media'
+#include 'actions/contacts'
+#include 'actions/sharing'
 
 #question connectionCode "Paste the connection code copied by desktop JARVIS" "Paste connection code here"
 
@@ -21,17 +23,26 @@ const actionURL = getValue(action, "url")
 const kindValue = getValue(action, "kind")
 @kind = "{kindValue}"
 const message = getValue(action, "message")
+const recipientValue = getValue(action, "recipient")
+@recipient = "{recipientValue}"
+const copyValue = getValue(action, "copy")
+@messageCopy = "{copyValue}"
 
-if actionURL {
-    openURL("{actionURL}")
+if @kind == "message" {
+    const phone = phoneNumber(@recipient)
+    sendMessage(phone, "{@messageCopy}", true)
 } else {
-    if @kind == "camera" {
-        takePhoto()
+    if actionURL {
+        openURL("{actionURL}")
     } else {
-        if @kind == "notifications" {
-            showNotification("{message}", "JARVIS")
+        if @kind == "camera" {
+            takePhoto()
         } else {
-            show("{message}")
+            if @kind == "notifications" {
+                showNotification("{message}", "JARVIS")
+            } else {
+                show("{message}")
+            }
         }
     }
 }

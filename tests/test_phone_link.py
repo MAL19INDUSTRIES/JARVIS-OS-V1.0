@@ -182,6 +182,12 @@ class PhoneLinkServiceTests(unittest.TestCase):
         response = self.service.receive_shortcut(device, "Call 4155550199")
         self.assertEqual(response["action"]["kind"], "call")
         self.assertEqual(response["action"]["url"], "tel:4155550199")
+        message = self.service.receive_shortcut(
+            device, "Text 4155550199 saying I am on my way"
+        )
+        self.assertEqual(message["action"]["kind"], "message")
+        self.assertEqual(message["action"]["recipient"], "4155550199")
+        self.assertEqual(message["action"]["copy"], "I am on my way")
         contact = self.service.receive_shortcut(device, "Call Alex")
         self.assertEqual(contact["action"]["kind"], "complete")
         self.assertIn("phone number", contact["action"]["message"])
@@ -289,6 +295,7 @@ class PhoneLinkWorkspaceTests(unittest.TestCase):
             self.assertTrue(installer.read_bytes().startswith(b"AEA1"))
             source = installer.with_name("JARVIS_TEMPLATE.cherri").read_text(encoding="utf-8")
             self.assertIn("#question connectionCode", source)
+            self.assertIn('sendMessage(phone, "{@messageCopy}", true)', source)
             self.assertNotIn("__JARVIS_SHORTCUT_TOKEN__", source)
             shortcut_buttons = window._phone_link_workspace._shortcut_page.findChildren(
                 ui.QPushButton
