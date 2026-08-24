@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import math
 import time
 from urllib.parse import parse_qs, urlparse
 
@@ -158,7 +159,7 @@ class PhoneLinkQrDialog(QDialog):
         self._instruction.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self._instruction)
 
-        self._detail = QLabel("Local web link, not a search  ·  Expires in 2:00")
+        self._detail = QLabel("Local web link, not a search")
         self._detail.setObjectName("qrDetail")
         self._detail.setFont(QFont("JetBrains Mono", 8, QFont.Weight.Medium))
         self._detail.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -202,8 +203,15 @@ class PhoneLinkQrDialog(QDialog):
         self._pairing = pairing
         self._qr.setPixmap(_qr_pixmap(pairing.url, 252))
         self._instruction.setText("Scan with iPhone Camera · Opens JARVIS directly")
-        self._detail.setText("Local web link, not a search  ·  Expires in 2:00")
+        self._update_countdown()
         self._refresh.hide()
+
+    def _update_countdown(self) -> int:
+        remaining = max(0, math.ceil(self._pairing.expires_at - time.time()))
+        self._detail.setText(
+            f"Local web link, not a search  ·  Expires in {remaining // 60}:{remaining % 60:02d}"
+        )
+        return remaining
 
     def _renew(self) -> None:
         try:
@@ -225,10 +233,7 @@ class PhoneLinkQrDialog(QDialog):
             self.accept()
             return
         self._known_device_ids = ids
-        remaining = max(0, int(self._pairing.expires_at - time.time()))
-        self._detail.setText(
-            f"Local web link, not a search  ·  Expires in {remaining // 60}:{remaining % 60:02d}"
-        )
+        remaining = self._update_countdown()
         if remaining <= 0:
             self._instruction.setText("This code has expired")
             self._detail.setText("Create a fresh code to continue")

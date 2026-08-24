@@ -28,7 +28,7 @@ from urllib.parse import parse_qs, quote, urlparse
 
 
 DEFAULT_PORT = 8765
-PAIRING_LIFETIME_SECONDS = 120
+PAIRING_LIFETIME_SECONDS = 600
 MAX_BODY_BYTES = 16_384
 MAX_MESSAGE_CHARS = 2_000
 IOS_NON_SAFARI_MARKERS = ("crios/", "fxios/", "edgios/", "opios/", "duckduckgo", "gsa/")

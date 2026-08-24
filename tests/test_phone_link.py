@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import QApplication
 
 import ui
 from core.phone_link import (
+    PAIRING_LIFETIME_SECONDS,
     PairingInfo,
     PhoneLinkError,
     PhoneLinkService,
@@ -49,6 +50,7 @@ class PhoneLinkServiceTests(unittest.TestCase):
 
     def test_pairing_is_single_use_and_remembered_as_a_hash(self):
         pairing, result = self._pair()
+        self.assertEqual(PAIRING_LIFETIME_SECONDS, 600)
         self.assertEqual(pairing.url.split("#", 1)[0], "http://jarvis.local:8765/phone/")
         self.assertNotIn(pairing.token, self.state_path.read_text(encoding="utf-8"))
         self.assertNotIn(result["device_token"], self.state_path.read_text(encoding="utf-8"))

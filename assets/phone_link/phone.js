@@ -110,7 +110,6 @@
   }
 
   async function pairInBrowser(pairToken) {
-    history.replaceState(null, "", "/phone/");
     setConnection("Pairing this iPhone…");
     const response = await fetch("/api/phone/pair", {
       method: "POST",
