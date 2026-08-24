@@ -21,7 +21,7 @@ from core.phone_link import (
     _phone_handoff,
     _phone_handoff_limitation,
 )
-from ui_phone_link import PhoneLinkWorkspaceWidget
+from ui_phone_link import PhoneLinkWorkspaceWidget, _is_direct_phone_url
 
 
 class PhoneLinkServiceTests(unittest.TestCase):
@@ -56,6 +56,24 @@ class PhoneLinkServiceTests(unittest.TestCase):
         self.assertIsNotNone(self.service.authenticate(result["device_token"]))
         with self.assertRaises(PhoneLinkError):
             self.service.exchange_pairing(pairing.token, "Replay")
+
+    def test_qr_target_is_a_direct_local_web_page_not_a_search(self):
+        with patch.object(self.service, "start"), patch(
+            "core.phone_link._lan_host", return_value="jarvis.local"
+        ):
+            pairing = self.service.create_pairing()
+        self.assertTrue(_is_direct_phone_url(pairing.url))
+        self.assertTrue(
+            _is_direct_phone_url(
+                "http://192.168.1.8:8765/phone/#pair=abcdefghijklmnopqrstuvwxyz"
+            )
+        )
+        self.assertFalse(
+            _is_direct_phone_url(
+                "https://www.google.com/search#pair=abcdefghijklmnopqrstuvwxyz"
+            )
+        )
+        self.assertFalse(_is_direct_phone_url("jarvisphone://pair?token=abcdefghijklmnopqrstuvwxyz"))
 
     def test_revoked_phone_can_no_longer_authenticate(self):
         _, result = self._pair()
@@ -212,8 +230,8 @@ class PhoneLinkWorkspaceTests(unittest.TestCase):
         temporary = TemporaryDirectory()
         service = PhoneLinkService(state_path=Path(temporary.name) / "state.json")
         pairing = PairingInfo(
-            "http://jarvis.local:8765/phone/#pair=modal-test",
-            "modal-test",
+            "http://jarvis.local:8765/phone/#pair=modal-test-token-abcdefghijklmnopqrstuvwxyz",
+            "modal-test-token-abcdefghijklmnopqrstuvwxyz",
             time.time() + 120,
         )
         palette = ui.MainWindow._preview_palette()

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ipaddress
 import time
+from urllib.parse import parse_qs, urlparse
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QImage, QPixmap
@@ -22,7 +24,28 @@ from PyQt6.QtWidgets import (
 from core.phone_link import PhoneLinkError, PhoneLinkService
 
 
+def _is_direct_phone_url(value: str) -> bool:
+    """Only allow a direct local JARVIS page into the pairing QR."""
+    parsed = urlparse(str(value or ""))
+    host = (parsed.hostname or "").casefold()
+    if parsed.scheme not in {"http", "https"} or parsed.path != "/phone/" or not host:
+        return False
+    fragment = parse_qs(parsed.fragment)
+    token = fragment.get("pair", [""])[0]
+    if len(token) < 20:
+        return False
+    if host == "localhost" or host.endswith(".local"):
+        return True
+    try:
+        address = ipaddress.ip_address(host.split("%", 1)[0])
+        return address.is_private or address.is_loopback or address.is_link_local
+    except ValueError:
+        return False
+
+
 def _qr_pixmap(value: str, size: int = 252) -> QPixmap:
+    if not _is_direct_phone_url(value):
+        raise PhoneLinkError("The QR target is not a direct local JARVIS web address.")
     import cv2
 
     encoder = cv2.QRCodeEncoder_create()
@@ -129,13 +152,13 @@ class PhoneLinkQrDialog(QDialog):
         self._qr.setAccessibleName("Single-use Phone Link QR code")
         root.addWidget(self._qr, 0, Qt.AlignmentFlag.AlignHCenter)
 
-        self._instruction = QLabel("Open Camera on your iPhone and scan")
+        self._instruction = QLabel("Scan with iPhone Camera · Opens JARVIS directly")
         self._instruction.setObjectName("qrInstruction")
         self._instruction.setFont(QFont("Space Grotesk", 12, QFont.Weight.DemiBold))
         self._instruction.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self._instruction)
 
-        self._detail = QLabel("Single-use code  ·  Expires in 2:00")
+        self._detail = QLabel("Local web link, not a search  ·  Expires in 2:00")
         self._detail.setObjectName("qrDetail")
         self._detail.setFont(QFont("JetBrains Mono", 8, QFont.Weight.Medium))
         self._detail.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -178,8 +201,8 @@ class PhoneLinkQrDialog(QDialog):
     def _set_pairing(self, pairing) -> None:
         self._pairing = pairing
         self._qr.setPixmap(_qr_pixmap(pairing.url, 252))
-        self._instruction.setText("Open Camera on your iPhone and scan")
-        self._detail.setText("Single-use code  ·  Expires in 2:00")
+        self._instruction.setText("Scan with iPhone Camera · Opens JARVIS directly")
+        self._detail.setText("Local web link, not a search  ·  Expires in 2:00")
         self._refresh.hide()
 
     def _renew(self) -> None:
@@ -204,7 +227,7 @@ class PhoneLinkQrDialog(QDialog):
         self._known_device_ids = ids
         remaining = max(0, int(self._pairing.expires_at - time.time()))
         self._detail.setText(
-            f"Single-use code  ·  Expires in {remaining // 60}:{remaining % 60:02d}"
+            f"Local web link, not a search  ·  Expires in {remaining // 60}:{remaining % 60:02d}"
         )
         if remaining <= 0:
             self._instruction.setText("This code has expired")
