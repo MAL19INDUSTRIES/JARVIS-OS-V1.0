@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Literal
-
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
@@ -38,28 +36,7 @@ class GeminiKeyRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=12000)
-    client_kind: Literal["web", "ios"] = "web"
-
-
-class PhoneActionView(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    kind: str
-    label: str
-    message: str
-    url: str | None = None
-    recipient: str | None = None
-    contact: str | None = None
-    message_copy: str | None = Field(default=None, alias="copy")
-
-
-class ChatMessageView(BaseModel):
-    id: str
-    role: str
-    content: str
-    created_at: str
 
 
 class ChatResponse(BaseModel):
     response: str
-    handoff: PhoneActionView | None = None

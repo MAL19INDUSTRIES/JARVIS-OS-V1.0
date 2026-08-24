@@ -1,48 +1,13 @@
 import Foundation
 
-enum JARVISPhase: String, Equatable {
-    case signedOut
-    case ready
-    case listening
-    case thinking
-    case acting
-    case complete
-    case offline
-
-    var label: String {
-        switch self {
-        case .signedOut: return "SIGN IN"
-        case .ready: return "READY"
-        case .listening: return "LISTENING"
-        case .thinking: return "THINKING"
-        case .acting: return "AWAITING APPROVAL"
-        case .complete: return "DONE"
-        case .offline: return "OFFLINE"
-        }
-    }
-
-    var isActive: Bool {
-        self == .listening || self == .thinking || self == .acting
-    }
-}
-
 struct PhoneMessage: Codable, Identifiable, Equatable {
-    let id: String
+    let seq: Int
     let role: String
     let content: String
-    let createdAt: String?
+    let source: String
+    let time: Double
 
-    init(id: String = UUID().uuidString, role: String, content: String, createdAt: String? = nil) {
-        self.id = id
-        self.role = role
-        self.content = content
-        self.createdAt = createdAt
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case id, role, content
-        case createdAt = "created_at"
-    }
+    var id: Int { seq }
 }
 
 struct PhoneAction: Codable, Identifiable, Equatable {
@@ -60,35 +25,38 @@ struct PhoneAction: Codable, Identifiable, Equatable {
     }
 }
 
-struct UserProfile: Codable, Equatable {
+struct LinkedDevice: Codable {
     let id: String
-    let email: String
-    let displayName: String
-    let geminiConfigured: Bool
+    let name: String
+    let clientKind: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, email
-        case displayName = "display_name"
-        case geminiConfigured = "gemini_configured"
+        case id, name
+        case clientKind = "client_kind"
     }
 }
 
-struct AuthSession: Codable {
-    let accessToken: String
-    let user: UserProfile
+struct PairingResponse: Codable {
+    let deviceToken: String
+    let device: LinkedDevice
 
     enum CodingKeys: String, CodingKey {
-        case accessToken = "access_token"
-        case user
+        case deviceToken = "device_token"
+        case device
     }
 }
 
-struct CloudChatResponse: Codable {
-    let response: String
+struct SessionResponse: Codable {
+    let connected: Bool
+    let persona: String
+    let messages: [PhoneMessage]
+}
+
+struct ChatResponse: Codable {
+    let accepted: Bool
     let handoff: PhoneAction?
 }
 
 struct APIErrorResponse: Codable {
-    let detail: String?
-    let error: String?
+    let error: String
 }

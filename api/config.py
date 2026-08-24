@@ -30,10 +30,6 @@ class Settings:
         "http://localhost:3000,http://127.0.0.1:3000",
     )
     chat_model: str = os.environ.get("JARVIS_CHAT_MODEL", "gemini-2.5-flash")
-    service_gemini_api_key: str = os.environ.get(
-        "JARVIS_SERVICE_GEMINI_KEY",
-        "",
-    ).strip()
     auto_create_tables: bool = os.environ.get("AUTO_CREATE_TABLES", "1").lower() in {
         "1", "true", "yes", "on",
     }

@@ -115,43 +115,6 @@ class HostedApiTests(unittest.TestCase):
         self.assertIn("web_search", names)
         self.assertNotIn("open_app", names)
 
-    def test_ios_chat_returns_confirmed_native_action_without_the_mac(self):
-        response = self.client.post(
-            "/chat",
-            headers=self.headers,
-            json={
-                "message": "Text Sam saying I am on my way",
-                "client_kind": "ios",
-            },
-        )
-        self.assertEqual(response.status_code, 200, response.text)
-        payload = response.json()
-        self.assertEqual(payload["handoff"]["kind"], "message-contact")
-        self.assertEqual(payload["handoff"]["contact"], "Sam")
-        self.assertEqual(payload["handoff"]["copy"], "I am on my way")
-        history = self.client.get("/chat/history", headers=self.headers)
-        self.assertEqual(history.status_code, 200, history.text)
-        self.assertEqual(
-            [item["role"] for item in history.json()[-2:]],
-            ["user", "assistant"],
-        )
-
-    def test_web_chat_does_not_receive_an_ios_handoff(self):
-        response = self.client.post(
-            "/chat",
-            headers=self.headers,
-            json={"message": "Open the camera"},
-        )
-        self.assertEqual(response.status_code, 409, response.text)
-        self.assertIsNone(response.json().get("handoff"))
-
-    def test_account_can_be_deleted_from_the_mobile_app(self):
-        response = self.client.delete("/auth/account", headers=self.headers)
-        self.assertEqual(response.status_code, 204, response.text)
-        self.assertEqual(self.client.get("/auth/me", headers=self.headers).status_code, 401)
-        with SessionLocal() as db:
-            self.assertIsNone(db.get(User, self.user_id))
-
     def test_cloud_action_worker_keeps_tenant_context(self):
         import main
         from core.tenant import get_current_user_id
