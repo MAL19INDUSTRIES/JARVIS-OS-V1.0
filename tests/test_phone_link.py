@@ -15,11 +15,13 @@ from PyQt6.QtWidgets import QApplication
 
 import ui
 from core.phone_link import (
+    PairingInfo,
     PhoneLinkError,
     PhoneLinkService,
     _phone_handoff,
     _phone_handoff_limitation,
 )
+from ui_phone_link import PhoneLinkWorkspaceWidget
 
 
 class PhoneLinkServiceTests(unittest.TestCase):
@@ -171,6 +173,49 @@ class PhoneLinkWorkspaceTests(unittest.TestCase):
         self.assertIn("[VERIFIED PHONE LINK MESSAGE]", received[0])
         self.assertIn('User message: "Open Instagram"', received[0])
         self.assertIn("Never say that Phone Link can do nothing", received[0])
+
+    def test_qr_step_opens_as_a_focused_modal(self):
+        temporary = TemporaryDirectory()
+        service = PhoneLinkService(state_path=Path(temporary.name) / "state.json")
+        pairing = PairingInfo(
+            "http://jarvis.local:8765/phone/#pair=modal-test",
+            "modal-test",
+            time.time() + 120,
+        )
+        palette = ui.MainWindow._preview_palette()
+        workspace = PhoneLinkWorkspaceWidget(service, palette)
+        workspace.resize(940, 620)
+        workspace.show()
+        try:
+            with patch.object(service, "create_pairing", return_value=pairing):
+                workspace.begin_pairing()
+            self.app.processEvents()
+            dialog = workspace._qr_dialog
+            self.assertIsNotNone(dialog)
+            self.assertTrue(dialog.isVisible())
+            self.assertTrue(dialog.isModal())
+            self.assertEqual(dialog.size().width(), 432)
+            self.assertFalse(dialog._qr.pixmap().isNull())
+            self.assertIs(workspace._stack.currentWidget(), workspace._confirm_page)
+            self.assertFalse(hasattr(workspace, "_pair_page"))
+            self.assertIsNotNone(workspace.graphicsEffect())
+            dialog._pairing = PairingInfo(pairing.url, pairing.token, time.time() - 1)
+            dialog._tick()
+            self.assertTrue(dialog._refresh.isVisible())
+            self.assertIn("expired", dialog._instruction.text().lower())
+            renewed = PairingInfo(pairing.url, "renewed", time.time() + 120)
+            with patch.object(service, "create_pairing", return_value=renewed):
+                dialog._renew()
+            self.assertFalse(dialog._refresh.isVisible())
+            self.assertIn("Expires in 2:00", dialog._detail.text())
+            dialog.reject()
+            self.app.processEvents()
+            self.assertIsNone(workspace.graphicsEffect())
+        finally:
+            workspace.stop()
+            workspace.close()
+            workspace.deleteLater()
+            temporary.cleanup()
 
 
 if __name__ == "__main__":
