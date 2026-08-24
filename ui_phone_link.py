@@ -359,7 +359,7 @@ class PhoneLinkWorkspaceWidget(QWidget):
         root.addWidget(self._stack, 1)
 
         footer = QLabel(
-            "Same trusted Wi-Fi only  ·  No QR  ·  iOS controls permissions"
+            "Same trusted Wi-Fi only  ·  Voice-first  ·  No QR"
         )
         footer.setObjectName("phoneFootnote")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -435,7 +435,7 @@ class PhoneLinkWorkspaceWidget(QWidget):
 
         body = QLabel(
             "JARVIS prepared the shortcut and its private connection. You only need "
-            "to approve the Apple installer."
+            "to approve the Apple installer once. After that, tap once and speak."
         )
         body.setObjectName("phoneBody")
         body.setFont(QFont("Space Grotesk", 10))
@@ -665,9 +665,9 @@ class PhoneLinkWorkspaceWidget(QWidget):
         self._device_title.setText(f"{name} remembered")
         if device.get("client_kind") == "ios-shortcut":
             self._device_detail.setText(
-                "Run the JARVIS shortcut from your iPhone Home Screen, Siri, widget, or "
-                "Action button while this Mac is available on the same Wi-Fi. Choose "
-                "Update Shortcut whenever JARVIS adds new phone actions."
+                "Say “Siri, JARVIS” and speak your command. Or put JARVIS on the iPhone "
+                "Home Screen or Action button for one-tap voice access. Choose Update "
+                "Shortcut whenever JARVIS adds new phone actions."
             )
             self._another.setText("UPDATE SHORTCUT")
         else:

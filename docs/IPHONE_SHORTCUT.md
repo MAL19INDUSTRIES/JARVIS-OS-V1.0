@@ -12,7 +12,14 @@ Phone Link uses a signed Apple Shortcut instead of a QR code or browser session.
 6. With Shortcuts iCloud Sync enabled, **JARVIS** appears in the Shortcuts app on the iPhone.
 7. Run it once on the iPhone and approve the local-network and action permissions you want to use.
 
-After installation, run **JARVIS** from the Shortcuts app, the Home Screen, Siri, a widget, or the Action button. You do not need to scan or pair again.
+## Everyday use
+
+You do not need to open the Shortcuts app or type a command. Use either of these paths:
+
+- Say **“Siri, JARVIS”**, then speak your command when JARVIS listens.
+- Add **JARVIS** to the iPhone Home Screen, a widget, or the Action button. Tap once, then speak.
+
+The Shortcut stops listening after a short pause and sends the spoken command to desktop JARVIS. You do not need to scan or pair again.
 
 ## Try these commands
 

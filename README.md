@@ -72,7 +72,9 @@ iPhone action layer on the same local Wi-Fi network. The shortcut can run from
 the Home Screen, Siri, a widget, or the Action button without a QR or permanent
 browser session. JARVIS opens a signed Shortcut installer and copies its private
 connection code automatically, so no actions need to be assembled by hand. A
-standalone [native companion](ios/JARVISPhone/README.md)
+normal run is voice-first: say “Siri, JARVIS,” or tap once and speak without
+opening the Shortcuts app or typing. A standalone
+[native companion](ios/JARVISPhone/README.md)
 remains under development and is not distributed through TestFlight or the App
 Store.
 

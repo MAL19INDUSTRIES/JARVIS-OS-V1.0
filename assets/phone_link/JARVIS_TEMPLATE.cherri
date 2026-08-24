@@ -7,11 +7,12 @@
 #include 'actions/media'
 #include 'actions/contacts'
 #include 'actions/sharing'
+#include 'actions/text'
 
 #question connectionCode "Paste the connection code copied by desktop JARVIS" "Paste connection code here"
 
 const endpoint = text(connectionCode)
-const command = prompt("What should JARVIS do?")
+const command = listen("After Short Pause")
 const response = jsonRequest(
     endpoint,
     "POST",

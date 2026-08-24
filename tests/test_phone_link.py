@@ -295,6 +295,8 @@ class PhoneLinkWorkspaceTests(unittest.TestCase):
             self.assertTrue(installer.read_bytes().startswith(b"AEA1"))
             source = installer.with_name("JARVIS_TEMPLATE.cherri").read_text(encoding="utf-8")
             self.assertIn("#question connectionCode", source)
+            self.assertIn('listen("After Short Pause")', source)
+            self.assertNotIn('prompt("What should JARVIS do?")', source)
             self.assertIn('sendMessage(phone, "{@messageCopy}", true)', source)
             self.assertNotIn("__JARVIS_SHORTCUT_TOKEN__", source)
             shortcut_buttons = window._phone_link_workspace._shortcut_page.findChildren(
