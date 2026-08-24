@@ -79,7 +79,7 @@ button, textarea, .action-link { font: inherit; }
   margin: 0 auto;
   padding: max(18px, env(safe-area-inset-top)) 18px max(10px, env(safe-area-inset-bottom));
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
 }
 
@@ -150,7 +150,8 @@ h1 { font-size: 14px; letter-spacing: .18em; font-weight: 650; }
 .bubble { margin: 0; padding: 13px 15px; border: 1px solid var(--line-soft); border-radius: 3px 14px 14px 14px; background: rgba(6, 18, 26, .78); line-height: 1.5; font-size: 15px; white-space: pre-wrap; }
 .message.user .bubble { border-color: var(--line); border-radius: 14px 3px 14px 14px; background: rgba(0, 72, 94, .24); }
 
-.handoff {
+.handoff,
+.install-tip {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -161,10 +162,24 @@ h1 { font-size: 14px; letter-spacing: .18em; font-weight: 650; }
   border-radius: 10px;
 }
 .handoff[hidden] { display: none; }
+.install-tip[hidden] { display: none; }
 .handoff strong { font-size: 13px; font-weight: 600; }
 .handoff p { color: var(--muted); font-size: 11px; margin-top: 3px; }
 .handoff .action-link { flex: 0 0 auto; border: 1px solid var(--cyan); color: var(--cyan); background: transparent; border-radius: 6px; padding: 9px 11px; font-size: 10px; letter-spacing: .12em; text-decoration: none; }
 .handoff .action-link:active { background: rgba(48, 216, 255, .12); }
+.install-tip { border-color: rgba(48, 216, 255, .32); }
+.install-tip strong { font-size: 13px; font-weight: 600; }
+.install-tip p { color: var(--muted); font-size: 11px; margin-top: 3px; }
+.install-tip b { color: var(--text); font-weight: 550; }
+.install-tip button {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--cyan);
+  padding: 9px 4px;
+  font-size: 10px;
+  letter-spacing: .12em;
+}
 
 .composer {
   min-height: 58px;

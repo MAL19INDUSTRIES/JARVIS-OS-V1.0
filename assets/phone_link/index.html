@@ -7,6 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="JARVIS">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="jarvis-icon.svg" type="image/svg+xml">
   <title>JARVIS Phone Link</title>
   <link rel="stylesheet" href="phone.css">
 </head>
@@ -17,7 +19,7 @@
       <p class="eyebrow">IPHONE CONNECTION</p>
       <h2 id="client-choice-title">Open JARVIS</h2>
       <p class="client-choice-copy">The iPhone app can perform confirmed phone actions. Safari is chat-only.</p>
-      <a id="native-open" class="primary-choice" href="#">OPEN JARVIS APP</a>
+      <a id="native-open" class="primary-choice" href="#">OPEN APP OR CONTINUE</a>
       <button id="browser-open" class="secondary-choice" type="button">CONTINUE WITH CHAT ONLY</button>
       <p class="choice-note">The app only connects while this iPhone and your Mac share local Wi-Fi.</p>
     </div>
@@ -48,6 +50,14 @@
         <p id="handoff-copy">Review this action before it leaves JARVIS.</p>
       </div>
       <a id="handoff-button" class="action-link" href="#" aria-label="Review phone action">REVIEW</a>
+    </section>
+
+    <section id="install-tip" class="install-tip" hidden>
+      <div>
+        <strong>Skip the QR next time</strong>
+        <p>Tap Safari’s Share button, then <b>Add to Home Screen</b>.</p>
+      </div>
+      <button id="install-tip-close" type="button" aria-label="Dismiss Home Screen tip">GOT IT</button>
     </section>
 
     <form id="composer" class="composer">

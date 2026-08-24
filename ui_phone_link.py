@@ -528,8 +528,9 @@ class PhoneLinkWorkspaceWidget(QWidget):
         name = str(device.get("name") or "iPhone")
         self._device_title.setText(f"{name} remembered")
         self._device_detail.setText(
-            "Open the saved Phone Link page on this Wi-Fi whenever JARVIS is running. "
-            "iOS pauses the web connection when the phone is locked."
+            "Launch JARVIS from the iPhone Home Screen whenever this Mac is running—no "
+            "new QR needed. If you did not save it yet, use Safari’s Share button and "
+            "choose Add to Home Screen."
         )
         self._revoke.setProperty("device_id", str(device.get("id") or ""))
         self._status.setText("IPHONE LINKED")

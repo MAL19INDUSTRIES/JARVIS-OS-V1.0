@@ -572,6 +572,12 @@ class _PhoneLinkHandler(BaseHTTPRequestHandler):
         if route.path == "/phone/phone.js":
             self._asset("phone.js", "text/javascript; charset=utf-8")
             return
+        if route.path == "/phone/manifest.webmanifest":
+            self._asset("manifest.webmanifest", "application/manifest+json; charset=utf-8")
+            return
+        if route.path == "/phone/jarvis-icon.svg":
+            self._asset("jarvis-icon.svg", "image/svg+xml; charset=utf-8")
+            return
         if route.path == "/phone/space-grotesk.ttf":
             font_path = self.phone_link.asset_dir.parent / "fonts" / "SpaceGrotesk-Variable.ttf"
             try:

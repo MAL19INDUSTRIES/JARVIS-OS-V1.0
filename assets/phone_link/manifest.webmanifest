@@ -1,0 +1,16 @@
+{
+  "name": "JARVIS Phone Link",
+  "short_name": "JARVIS",
+  "start_url": "/phone/",
+  "display": "standalone",
+  "background_color": "#02080d",
+  "theme_color": "#02080d",
+  "icons": [
+    {
+      "src": "/phone/jarvis-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

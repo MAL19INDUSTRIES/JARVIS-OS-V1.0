@@ -14,10 +14,14 @@
   const clientChoice = document.querySelector("#client-choice");
   const nativeOpen = document.querySelector("#native-open");
   const browserOpen = document.querySelector("#browser-open");
+  const installTip = document.querySelector("#install-tip");
+  const installTipClose = document.querySelector("#install-tip-close");
   let token = localStorage.getItem(storageKey) || "";
   let lastSequence = 0;
   let polling = false;
   let handoffData = null;
+  let pollTimer = null;
+  let nativeFallbackTimer = null;
 
   const authHeaders = () => ({
     "Content-Type": "application/json",
@@ -62,7 +66,15 @@
     token = data.device_token;
     localStorage.setItem(storageKey, token);
     await poll();
-    setInterval(poll, 1100);
+    startPolling();
+    if (!window.navigator.standalone && localStorage.getItem("jarvis.phone-link.home-tip") !== "done") {
+      installTip.hidden = false;
+    }
+  }
+
+  function startPolling() {
+    if (pollTimer) return;
+    pollTimer = window.setInterval(poll, 1100);
   }
 
   function offerNativeApp(pairToken) {
@@ -70,6 +82,17 @@
     nativeOpen.href = `jarvisphone://pair?${params.toString()}`;
     clientChoice.hidden = false;
     setConnection("Choose how to connect");
+    nativeOpen.onclick = () => {
+      window.clearTimeout(nativeFallbackTimer);
+      nativeFallbackTimer = window.setTimeout(() => {
+        if (document.visibilityState === "visible" && clientChoice.hidden === false) {
+          pairInBrowser(pairToken).catch((error) => {
+            clientChoice.hidden = false;
+            setConnection(error.message);
+          });
+        }
+      }, 1200);
+    };
     browserOpen.onclick = async () => {
       browserOpen.disabled = true;
       try {
@@ -105,8 +128,10 @@
       persona.textContent = data.persona || "JARVIS";
       setConnection("Connected on local Wi-Fi", true);
       (data.messages || []).forEach(appendMessage);
+      return true;
     } catch (error) {
       setConnection(token ? "Waiting for your Mac…" : error.message);
+      return false;
     } finally {
       polling = false;
     }
@@ -139,6 +164,15 @@
     }
   });
 
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") window.clearTimeout(nativeFallbackTimer);
+  });
+
+  installTipClose.addEventListener("click", () => {
+    localStorage.setItem("jarvis.phone-link.home-tip", "done");
+    installTip.hidden = true;
+  });
+
   input.addEventListener("input", () => {
     input.style.height = "auto";
     input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
@@ -168,6 +202,14 @@
 
   (async () => {
     try {
+      if (token) {
+        const resumed = await poll();
+        if (resumed) {
+          history.replaceState(null, "", "/phone/");
+          startPolling();
+          return;
+        }
+      }
       const choosingClient = await pairFromFragment();
       if (choosingClient) return;
       if (!token) {
@@ -175,7 +217,7 @@
         return;
       }
       await poll();
-      setInterval(poll, 1100);
+      startPolling();
     } catch (error) {
       setConnection(error.message);
     }
