@@ -101,7 +101,37 @@ class PhoneLinkServiceTests(unittest.TestCase):
             "Open Youtube",
         )
         self.assertIn("phone number", _phone_handoff_limitation("Call Alex"))
+        self.assertIn("installed", _phone_handoff_limitation("Open the camera"))
+        self.assertIn(
+            "other apps",
+            _phone_handoff_limitation("Read my notifications", native=True),
+        )
         self.assertIsNone(_phone_handoff("delete all my photos"))
+
+    def test_native_phone_actions_use_the_companion_contract(self):
+        call = _phone_handoff("Call Alex", native=True)
+        self.assertEqual(call["kind"], "call-contact")
+        self.assertEqual(call["contact"], "Alex")
+        message = _phone_handoff("Text Sam saying On my way", native=True)
+        self.assertEqual(message["kind"], "message-contact")
+        self.assertEqual(message["copy"], "On my way")
+        self.assertEqual(_phone_handoff("Open the camera", native=True)["kind"], "camera")
+        self.assertEqual(
+            _phone_handoff("Enable JARVIS notifications", native=True)["kind"],
+            "notifications",
+        )
+        self.assertIsNone(_phone_handoff("Open the camera"))
+
+    def test_native_pairing_is_remembered_as_a_native_client(self):
+        with patch.object(self.service, "start"), patch(
+            "core.phone_link._lan_host", return_value="jarvis.local"
+        ):
+            pairing = self.service.create_pairing()
+        result = self.service.exchange_pairing(pairing.token, "Test iPhone", "ios-native")
+        device = self.service.authenticate(result["device_token"])
+        self.assertEqual(device["client_kind"], "ios-native")
+        response = self.service.receive_chat(device, "Open the camera")
+        self.assertEqual(response["handoff"]["kind"], "camera")
 
     def test_mobile_handoff_is_a_native_link_not_async_navigation(self):
         root = Path(__file__).resolve().parents[1] / "assets" / "phone_link"
@@ -110,6 +140,8 @@ class PhoneLinkServiceTests(unittest.TestCase):
         self.assertIn('<a id="handoff-button"', html)
         self.assertIn('handoffButton.setAttribute("href", data.url)', script)
         self.assertNotIn("location.href = handoffData.url", script)
+        self.assertIn("jarvisphone://pair", script)
+        self.assertIn("OPEN JARVIS APP", html)
 
     def test_capability_question_is_answered_without_false_model_refusal(self):
         _, result = self._pair()

@@ -33,6 +33,46 @@ body {
 
 button, textarea, .action-link { font: inherit; }
 
+.client-choice {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+  background: rgba(1, 6, 10, .88);
+  backdrop-filter: blur(18px);
+}
+.client-choice[hidden] { display: none; }
+.client-choice-card {
+  width: min(100%, 390px);
+  padding: 30px 24px 24px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: linear-gradient(155deg, rgba(8, 26, 36, .98), rgba(3, 12, 18, .98));
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .48);
+  text-align: center;
+}
+.arc-mark.compact { width: 48px; height: 48px; margin-bottom: 18px; }
+.arc-mark.compact::after { inset: 13px; }
+.eyebrow { color: var(--cyan-dim); font-size: 10px; letter-spacing: .18em; }
+.client-choice-card h2 { margin-top: 8px; font-size: 26px; font-weight: 570; }
+.client-choice-copy { margin: 10px auto 22px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.primary-choice,
+.secondary-choice {
+  display: block;
+  width: 100%;
+  border-radius: 10px;
+  padding: 14px 12px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .11em;
+  text-decoration: none;
+}
+.primary-choice { border: 1px solid var(--cyan); background: var(--cyan); color: #001016; }
+.secondary-choice { margin-top: 10px; border: 1px solid var(--line); background: transparent; color: var(--cyan-dim); }
+.choice-note { margin-top: 18px; color: #55717b; font-size: 11px; line-height: 1.45; }
+
 .app-shell {
   width: min(100%, 680px);
   height: 100dvh;

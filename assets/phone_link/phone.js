@@ -11,6 +11,9 @@
   const handoffTitle = document.querySelector("#handoff-title");
   const handoffCopy = document.querySelector("#handoff-copy");
   const handoffButton = document.querySelector("#handoff-button");
+  const clientChoice = document.querySelector("#client-choice");
+  const nativeOpen = document.querySelector("#native-open");
+  const browserOpen = document.querySelector("#browser-open");
   let token = localStorage.getItem(storageKey) || "";
   let lastSequence = 0;
   let polling = false;
@@ -45,21 +48,45 @@
     transcript.scrollTo({ top: transcript.scrollHeight, behavior: "smooth" });
   }
 
-  async function pairFromFragment() {
-    const params = new URLSearchParams(location.hash.slice(1));
-    const pairToken = params.get("pair");
-    if (!pairToken) return false;
+  async function pairInBrowser(pairToken) {
+    clientChoice.hidden = true;
     history.replaceState(null, "", "/phone/");
     setConnection("Pairing this iPhone…");
     const response = await fetch("/api/phone/pair", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pair_token: pairToken, device_name: "iPhone" }),
+      body: JSON.stringify({ pair_token: pairToken, device_name: "iPhone", client_kind: "web" }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Pairing failed.");
     token = data.device_token;
     localStorage.setItem(storageKey, token);
+    await poll();
+    setInterval(poll, 1100);
+  }
+
+  function offerNativeApp(pairToken) {
+    const params = new URLSearchParams({ server: location.origin, token: pairToken });
+    nativeOpen.href = `jarvisphone://pair?${params.toString()}`;
+    clientChoice.hidden = false;
+    setConnection("Choose how to connect");
+    browserOpen.onclick = async () => {
+      browserOpen.disabled = true;
+      try {
+        await pairInBrowser(pairToken);
+      } catch (error) {
+        clientChoice.hidden = false;
+        browserOpen.disabled = false;
+        setConnection(error.message);
+      }
+    };
+  }
+
+  async function pairFromFragment() {
+    const params = new URLSearchParams(location.hash.slice(1));
+    const pairToken = params.get("pair");
+    if (!pairToken) return false;
+    offerNativeApp(pairToken);
     return true;
   }
 
@@ -141,7 +168,8 @@
 
   (async () => {
     try {
-      await pairFromFragment();
+      const choosingClient = await pairFromFragment();
+      if (choosingClient) return;
       if (!token) {
         setConnection("Scan a Phone Link QR in JARVIS");
         return;

@@ -211,7 +211,12 @@ class PhoneLinkService:
                 self._write_state()
             return changed
 
-    def exchange_pairing(self, token: str, device_name: str) -> dict:
+    def exchange_pairing(
+        self,
+        token: str,
+        device_name: str,
+        client_kind: str = "web",
+    ) -> dict:
         now = self._clock()
         digest = _token_hash(str(token or ""))
         with self._lock:
@@ -219,9 +224,13 @@ class PhoneLinkService:
             if expiry is None or expiry <= now:
                 raise PhoneLinkError("This QR code is invalid or has expired.")
             raw_device_token = secrets.token_urlsafe(48)
+            normalized_client = (
+                "ios-native" if str(client_kind).strip().casefold() == "ios-native" else "web"
+            )
             device = {
                 "id": uuid.uuid4().hex,
                 "name": str(device_name or "iPhone").strip()[:80] or "iPhone",
+                "client_kind": normalized_client,
                 "token_hash": _token_hash(raw_device_token),
                 "paired_at": now,
                 "last_seen": now,
@@ -287,15 +296,16 @@ class PhoneLinkService:
         if not clean:
             raise PhoneLinkError("Message cannot be empty.")
         self.publish_message("user", clean, source=device.get("name", "iPhone"))
-        capability_reply = _phone_capability_reply(clean)
+        native_client = device.get("client_kind") == "ios-native"
+        capability_reply = _phone_capability_reply(clean, native=native_client)
         if capability_reply:
             self.publish_message("assistant", capability_reply, source="phone")
             return {"accepted": True, "handled": "capabilities"}
-        handoff = _phone_handoff(clean)
+        handoff = _phone_handoff(clean, native=native_client)
         if handoff:
             self.publish_message("assistant", handoff["message"], source="phone")
             return {"accepted": True, "handoff": handoff}
-        limitation = _phone_handoff_limitation(clean)
+        limitation = _phone_handoff_limitation(clean, native=native_client)
         if limitation:
             self.publish_message("assistant", limitation, source="phone")
             return {"accepted": True, "handled": "phone-action-limitation"}
@@ -318,7 +328,7 @@ class PhoneLinkService:
             return True
 
 
-def _phone_handoff(message: str) -> dict | None:
+def _phone_handoff(message: str, *, native: bool = False) -> dict | None:
     """Build an explicit, user-tapped iOS handoff for narrow safe actions."""
     lowered = " ".join(message.casefold().split())
     lowered = re.sub(r"^(?:please\s+|can you\s+|could you\s+|would you\s+)", "", lowered)
@@ -342,16 +352,25 @@ def _phone_handoff(message: str) -> dict | None:
         flags=re.IGNORECASE,
     )
     if call_match:
+        target = call_match.group(1).strip()
         number = "".join(
-            char for char in call_match.group(1)
+            char for char in target
             if char.isdigit() or char in "+*#"
         )
         if len(number) >= 3:
             return {
                 "kind": "call",
                 "label": f"Call {number}",
+                "recipient": number,
                 "url": f"tel:{number}",
                 "message": "I prepared the call. Tap below to confirm it on your iPhone.",
+            }
+        if native and target:
+            return {
+                "kind": "call-contact",
+                "label": f"Call {target}",
+                "contact": target,
+                "message": "I found a contact request. Confirm it on your iPhone before I place the call.",
             }
     message_match = re.match(
         r"^(?:(?:send|write)\s+)?(?:a\s+)?(?:message|text|sms)(?:\s+to)?\s+(.+)$",
@@ -378,10 +397,38 @@ def _phone_handoff(message: str) -> dict | None:
                 return {
                     "kind": "message",
                     "label": f"Open Messages to {number}",
+                    "recipient": number,
                     "url": url,
                     "copy": draft,
                     "message": "I prepared the message. Tap below to review and send it yourself.",
                 }
+            if native and target:
+                draft = body.strip() if separator else ""
+                return {
+                    "kind": "message-contact",
+                    "label": f"Message {target}",
+                    "contact": target.strip(),
+                    "copy": draft,
+                    "message": "I prepared the message. Confirm it, then review and send it in Messages.",
+                }
+    if native and re.search(
+        r"\b(?:open|start|use)\s+(?:the\s+)?camera\b|\b(?:take|capture)\s+(?:a\s+)?(?:photo|picture)\b",
+        lowered,
+    ):
+        return {
+            "kind": "camera",
+            "label": "Open Camera",
+            "message": "Camera access is ready. Confirm to open the camera inside JARVIS.",
+        }
+    if native and re.search(
+        r"\b(?:enable|allow|turn on)\s+(?:jarvis\s+)?notifications?\b",
+        lowered,
+    ):
+        return {
+            "kind": "notifications",
+            "label": "Enable JARVIS Notifications",
+            "message": "Confirm to let iOS show notifications sent by the JARVIS companion.",
+        }
     links = {
         "instagram": "https://www.instagram.com/",
         "maps": "https://maps.apple.com/",
@@ -402,8 +449,14 @@ def _phone_handoff(message: str) -> dict | None:
     return None
 
 
-def _phone_handoff_limitation(message: str) -> str | None:
+def _phone_handoff_limitation(message: str, *, native: bool = False) -> str | None:
     lowered = " ".join(str(message or "").casefold().split())
+    if re.search(r"\b(?:read|show|check|summarize)\b.*\bnotifications?\b", lowered):
+        return "iOS does not allow JARVIS to read notifications belonging to other apps."
+    if re.search(r"\b(?:while|when)\s+(?:the\s+)?phone\s+is\s+locked\b|\bunlock\s+(?:my\s+)?phone\b", lowered):
+        return "iOS does not allow a persistent JARVIS network-control session while the phone is locked."
+    if not native and re.search(r"\bcamera\b|\b(?:take|capture)\s+(?:a\s+)?(?:photo|picture)\b", lowered):
+        return "Camera actions require the installed JARVIS iPhone app; the Safari chat cannot access it."
     if re.search(r"\b(?:call|dial|phone|message|text|sms)\b", lowered):
         if not re.search(r"\d{3,}", lowered):
             return (
@@ -413,7 +466,7 @@ def _phone_handoff_limitation(message: str) -> str | None:
     return None
 
 
-def _phone_capability_reply(message: str) -> str | None:
+def _phone_capability_reply(message: str, *, native: bool = False) -> str | None:
     lowered = " ".join(str(message or "").casefold().split())
     asks_about_phone = any(term in lowered for term in (
         "what can you do", "what can jarvis do", "control my phone",
@@ -421,12 +474,22 @@ def _phone_capability_reply(message: str) -> str | None:
     ))
     if not asks_about_phone:
         return None
+    if native:
+        return (
+            "From the JARVIS iPhone app, I can prepare calls and message drafts using "
+            "phone numbers or your contacts, open supported app links, open the JARVIS "
+            "camera, and request JARVIS notification permission. Sensitive actions require "
+            "your confirmation. iOS does not allow me to read other apps' notifications, "
+            "silently send messages, automate arbitrary app screens, or keep a network "
+            "control session running while the phone is locked."
+        )
     return (
         "From this linked iPhone, you can chat with me and control JARVIS on your Mac. "
         "I can also prepare calls to phone numbers, message drafts to phone numbers, "
         "and links for Instagram, Maps, Music, or YouTube. Those phone actions appear "
         "as a confirmation card and only run when you tap it. Contacts, notifications, "
-        "camera control, and locked-screen automation need the future native iPhone app."
+        "Contact lookup, the JARVIS camera, and JARVIS notifications require the installed "
+        "native companion. Other apps' notifications and locked-screen control remain unavailable."
     )
 
 
@@ -546,7 +609,9 @@ class _PhoneLinkHandler(BaseHTTPRequestHandler):
                     return
                 body = self._body()
                 result = self.phone_link.exchange_pairing(
-                    str(body.get("pair_token", "")), str(body.get("device_name", "iPhone"))
+                    str(body.get("pair_token", "")),
+                    str(body.get("device_name", "iPhone")),
+                    str(body.get("client_kind", "web")),
                 )
                 self._json(HTTPStatus.CREATED, result)
                 return

@@ -65,6 +65,14 @@ JARVIS's core UI, Gemini connection, presentations, research, files, and CLI are
 cross-platform. Some computer-control, email, media, and browser integrations
 depend on permissions and available applications on each operating system.
 
+## iPhone companion
+
+Phone Link includes a native, chat-only iPhone companion for confirmed phone
+actions on the same local Wi-Fi network. See the
+[iPhone setup guide](ios/JARVISPhone/README.md) to install it from Xcode. The
+Safari fallback can chat and open handoff links, but native contact, camera, and
+JARVIS notification permissions require the installed companion app.
+
 ## Hosted web application
 
 The repository also contains a multi-user FastAPI service and a Next.js web
